@@ -518,6 +518,47 @@ python scripts/python/main.py skato --config config/regenie_example.yaml
 - 当前实现默认支持在 `mapped_genes` 和 `reported_genes` 两类字段中匹配
 - `source_mode: api` 时会按 gene symbol 调用官方 `associations` 接口并分页汇总结果
 
+`project_results_with_gwas_catalog.tsv` 主要列含义：
+
+- 原始输入表中的所有列会原样保留
+- `gwas_catalog_found`：该 gene 是否命中 GWAS Catalog
+- `gwas_catalog_result_count`：命中的 GWAS Catalog 记录条数
+- `gwas_catalog_traits`：命中记录中去重后的标准化 trait 摘要
+- `gwas_catalog_reported_traits`：命中记录中去重后的 reported trait 摘要
+- `gwas_catalog_mapped_genes`：命中记录中去重后的 mapped genes 汇总
+- `gwas_catalog_top_variant`：最显著记录对应的变异标识，优先为 `rsID`
+- `gwas_catalog_top_pvalue`：最显著记录对应的 P 值
+- `gwas_catalog_top_study`：最显著记录对应的 study accession 和作者信息
+- `gwas_catalog_study_accessions`：该 gene 命中的所有 study accession 去重汇总
+
+`gwas_catalog_gene_hits.tsv` 主要列含义：
+
+- `project_row_index`：该命中对应主表中的第几行输入记录
+- `gene`：主表当前处理的 gene symbol
+- `gwas_catalog_trait`：GWAS Catalog 标准化 trait
+- `gwas_catalog_reported_trait`：论文 reported trait
+- `gwas_catalog_mapped_genes`：该条记录对应的 mapped genes
+- `gwas_catalog_reported_genes`：该条记录对应的 reported genes
+- `gwas_catalog_variant`：该条记录关联的变异标识，优先为 `rsID`
+- `gwas_catalog_pvalue`：该条记录的 P 值
+- `gwas_catalog_study_accession`：GWAS Catalog study accession，例如 `GCST...`
+- `gwas_catalog_first_author`：该研究记录的第一作者
+- `gwas_catalog_pubmed_id`：对应文献的 PubMed ID
+
+`run_metadata.json` 主要内容：
+
+- 输入结果表路径
+- 当前 gene 列名
+- 数据源类型：本地 TSV、远程下载 TSV 或 API
+- 汇总结果文件和明细文件路径
+- 输入行数与明细命中行数
+- API 模式下的接口地址、分页大小和最大页数
+
+API 模式注意事项：
+
+- GWAS Catalog 官方 `associations` 接口通常能稳定返回 `mapped_genes`、`trait`、`reported_trait`、`p_value`、`accession_id`、`first_author`、`pubmed_id`、`rsID`
+- `reported_genes` 在官方 API 响应中不一定总是提供，因此 API 模式下该列可能为空；如果你特别依赖 `reported_genes`，更建议使用本地 TSV 模式
+
 ## 5. 输入文件说明
 
 ### 5.1 基因型文件 `geno_matrix.tsv`
@@ -1278,10 +1319,42 @@ python scripts/python/main.py gwas-gene-catalog --config config/gwas_gene_catalo
 - `gwas_catalog_top_pvalue` 表示该 gene 命中记录中最显著的一条
 - `gwas_catalog_top_study` 和 `gwas_catalog_study_accessions` 便于后续回溯原始研究
 
+字段说明：
+
+- 原始输入表列会完整保留
+- `gwas_catalog_found`：该 gene 是否命中 GWAS Catalog
+- `gwas_catalog_result_count`：命中的记录数
+- `gwas_catalog_traits`：去重后的标准化 trait 汇总
+- `gwas_catalog_reported_traits`：去重后的 reported trait 汇总
+- `gwas_catalog_mapped_genes`：去重后的 mapped genes 汇总
+- `gwas_catalog_top_variant`：最显著记录对应的变异标识
+- `gwas_catalog_top_pvalue`：最显著记录对应的 P 值
+- `gwas_catalog_top_study`：最显著记录对应的 study accession 和作者
+- `gwas_catalog_study_accessions`：所有命中记录对应的 study accession 汇总
+
 `gwas_catalog_gene_hits.tsv` 说明：
 
 - 一行对应一个 gene 命中的一条 GWAS Catalog 记录
 - 适合做追溯、人工核查和二次筛选
+
+主要列含义：
+
+- `project_row_index`：对应主表中的输入行号
+- `gene`：当前处理的 gene symbol
+- `gwas_catalog_trait`：GWAS Catalog 标准化 trait
+- `gwas_catalog_reported_trait`：论文原始 reported trait
+- `gwas_catalog_mapped_genes`：该条命中关联的 mapped genes
+- `gwas_catalog_reported_genes`：该条命中关联的 reported genes
+- `gwas_catalog_variant`：该条命中关联的变异标识，优先为 `rsID`
+- `gwas_catalog_pvalue`：该条命中的 P 值
+- `gwas_catalog_study_accession`：GWAS Catalog study accession
+- `gwas_catalog_first_author`：研究第一作者
+- `gwas_catalog_pubmed_id`：对应文献 PubMed ID
+
+`run_metadata.json` 说明：
+
+- 记录当前运行使用的输入文件、结果文件、命中数量和数据源类型
+- API 模式下还会记录接口地址、分页大小、最大页数和是否启用 `extended_geneset`
 ## 11. 使用说明
 
 建议使用顺序：
@@ -1343,6 +1416,7 @@ python scripts/python/main.py gwas-gene-catalog --config config/gwas_gene_catalo
 
 - 当前 Docker 镜像尚未内置 `regenie`
 - 如需使用 `burden.engine=regenie` 或 `skato.engine=regenie`，请在宿主环境安装 `regenie`，或基于当前镜像再构建自定义镜像
+- Docker 构建阶段会自动生成 `quant-assoc` 示例所需的 `data/plink2/` 输入文件，因此容器内可直接运行 `quant-assoc --config config/quant_assoc_plink2_example.yaml`
 
 说明：
 
@@ -1417,3 +1491,36 @@ docker run --rm -it \
 - 如仅验证镜像自带示例，无需挂载项目代码目录
 - 如需持久化输出结果，建议挂载宿主机目录到 `/work`
 - 如需使用自定义配置或自定义输入数据，可额外挂载数据目录并在配置文件中使用绝对路径
+
+### 13.4 GitHub Actions 自动构建 Docker 镜像
+
+仓库已提供 GitHub Actions 工作流：
+
+- 文件路径：`.github/workflows/docker-image.yml`
+- 触发条件：
+  - Push 到 `main` / `master`
+  - 针对 `main` / `master` 的 Pull Request
+  - 推送 `v*` Tag
+  - 手动触发 `workflow_dispatch`
+
+工作流行为：
+
+- 先构建 Docker 镜像
+- 在容器内执行 smoke test：
+  - `burden`
+  - `skato`
+  - `haplotype`
+  - `gwas-overlap`
+  - `quant-assoc`
+- 非 PR 事件会自动推送镜像到 GitHub Container Registry（`ghcr.io`）
+
+镜像标签规则：
+
+- 分支构建：`ghcr.io/<owner>/<repo>:<branch>`
+- Tag 构建：`ghcr.io/<owner>/<repo>:<tag>`
+- 默认分支额外附带：`latest`
+
+如需在 GitHub 上成功推送镜像，请确认：
+
+- 仓库 Actions 权限允许 `Read and write permissions`
+- 组织或个人账号允许向 `ghcr.io` 发布包
