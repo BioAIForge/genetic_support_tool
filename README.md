@@ -95,6 +95,110 @@ genetic_support_tool/
   README.md
 ```
 
+## 3.1 快速开始
+
+如果你是第一次把代码拉到服务器，建议按下面顺序测试：
+
+1. 先完成最小环境安装
+2. 先跑不依赖外部命令行工具的模块，确认 Python + R 链路可用
+3. 再按需安装 `plink2`、`bedtools`、`regenie`，测试扩展模块
+
+推荐的阅读顺序是：
+
+- 本节先看整体流程
+- 详细依赖见 `7. 依赖说明`
+- 服务器安装见 `8. 服务器环境安装`
+- 各模块命令见 `9. 运行方式`
+- 如果希望用容器，直接看 `13. Docker 使用说明`
+
+### 3.1.1 服务器最小可运行流程
+
+以 Ubuntu / Debian 为例，拉取代码后可先执行：
+
+```bash
+sudo apt-get update
+sudo apt-get install -y python3 python3-venv python3-pip r-base
+
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+mkdir -p ~/R/library
+export R_LIBS_USER=~/R/library
+Rscript -e 'dir.create(Sys.getenv("R_LIBS_USER"), recursive=TRUE, showWarnings=FALSE); .libPaths(c(Sys.getenv("R_LIBS_USER"), .libPaths())); install.packages(c("optparse","jsonlite"), repos="https://cloud.r-project.org")'
+```
+
+完成后，建议先跑一个最小 smoke test：
+
+```bash
+python scripts/python/main.py burden --config config/default.yaml
+```
+
+如果该命令可以成功生成 `output/burden/` 下的结果文件，说明：
+
+- Python 入口可用
+- YAML 配置解析可用
+- `Rscript` 调用链路可用
+- 基础的 TSV 输入输出流程可用
+
+### 3.1.2 推荐测试顺序
+
+推荐按依赖复杂度由低到高测试：
+
+1. `burden --config config/default.yaml`
+2. `skato --config config/default.yaml`
+3. `haplotype --config config/strong_signal_haplotype.yaml`
+4. `gwas-overlap --config config/gwas_overlap_demo.yaml`
+5. `quant-assoc --config config/quant_assoc_plink2_example.yaml`
+6. `burden` / `skato` 的 `engine=regenie` 配置
+
+说明：
+
+- 第 1 步主要验证 Python + R + TSV 基础链路
+- 第 2、3 步会进一步验证 `SKAT`、`haplo.stats` 等 R 包依赖
+- 第 4 步会验证 `bedtools`
+- 第 5 步会验证 `plink2`
+- 第 6 步最后验证 `regenie`
+
+### 3.1.3 各模块开始前要注意什么
+
+#### Burden / SKAT-O / Haplotype
+
+这三个模块最适合先在服务器上跑通，因为它们直接使用仓库中的 TSV 示例数据。
+
+常见前置条件：
+
+- Python 依赖已安装
+- `Rscript` 可用
+- 对应 R 包已安装
+
+#### Quantitative Association
+
+`quant-assoc` 依赖 `plink2`。此外，当前示例配置默认读取 `PED/MAP` 示例前缀，因此第一次测试前建议先生成示例输入：
+
+```bash
+python scripts/python/make_plink2_example.py
+python scripts/python/main.py quant-assoc --config config/quant_assoc_plink2_example.yaml
+```
+
+#### Burden / SKAT-O 的 regenie 场景
+
+`regenie` 场景建议最后测试，因为它比其他模块多依赖：
+
+- `regenie`
+- `plink2`，如果你需要先把示例 `PED/MAP` 转成 `PGEN`
+- annotation / set-list / mask-def / pred 等额外输入
+
+示例测试方式：
+
+```bash
+plink2 --pedmap data/regenie/example_dataset --make-pgen --out data/regenie/example_dataset
+python scripts/python/main.py burden --config config/regenie_example.yaml
+python scripts/python/main.py skato --config config/regenie_example.yaml
+```
+
+当前实现中，`engine=regenie` 会直接保留 regenie 原始输出文件，不再额外封装统一 TSV 结果表。
+
 ---
 
 ## 4. 功能模块说明
