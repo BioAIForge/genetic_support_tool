@@ -17,6 +17,7 @@
 - `skato`：SKAT-O 集合检验
 - `haplotype`：局部 Haplotype 分析
 - `quant_assoc`：连续表型关联分析
+- `gwas_gene_catalog`：基因级 GWAS Catalog 证据回填
 - `gwas_overlap`：与传统 GWAS hits 的重叠和补充关系分析
 
 后续可继续扩展的方法包括：
@@ -64,6 +65,7 @@
 genetic_support_tool/
   config/
     default.yaml
+    gwas_gene_catalog_demo.yaml
     gwas_overlap_demo.yaml
     regenie_example.yaml
     quant_assoc_plink2_example.yaml
@@ -73,6 +75,7 @@ genetic_support_tool/
   data/
     example/
     example_strong_signal/
+    gwas_gene_catalog/
     gwas_overlap/
   output/
   scripts/
@@ -80,6 +83,7 @@ genetic_support_tool/
       config_utils.py
       main.py
       run_burden.py
+      run_gwas_gene_catalog.py
       run_gwas_overlap.py
       run_haplotype.py
       run_regenie.py
@@ -147,17 +151,19 @@ python scripts/python/main.py burden --config config/default.yaml
 1. `burden --config config/default.yaml`
 2. `skato --config config/default.yaml`
 3. `haplotype --config config/strong_signal_haplotype.yaml`
-4. `gwas-overlap --config config/gwas_overlap_demo.yaml`
-5. `quant-assoc --config config/quant_assoc_plink2_example.yaml`
-6. `burden` / `skato` 的 `engine=regenie` 配置
+4. `gwas-gene-catalog --config config/gwas_gene_catalog_demo.yaml`
+5. `gwas-overlap --config config/gwas_overlap_demo.yaml`
+6. `quant-assoc --config config/quant_assoc_plink2_example.yaml`
+7. `burden` / `skato` 的 `engine=regenie` 配置
 
 说明：
 
 - 第 1 步主要验证 Python + R + TSV 基础链路
 - 第 2、3 步会进一步验证 `SKAT`、`haplo.stats` 等 R 包依赖
-- 第 4 步会验证 `bedtools`
-- 第 5 步会验证 `plink2`
-- 第 6 步最后验证 `regenie`
+- 第 4 步会验证基于基因 symbol 的 GWAS Catalog 摘要/明细回填流程
+- 第 5 步会验证 `bedtools`
+- 第 6 步会验证 `plink2`
+- 第 7 步最后验证 `regenie`
 
 ### 3.1.3 各模块开始前要注意什么
 
@@ -210,6 +216,7 @@ python scripts/python/main.py skato --config config/regenie_example.yaml
 | `skato` | SKAT-O 集合检验 | `python scripts/python/main.py skato --config ...` | `SKAT`、`regenie` | 已实现 | `output/skato_<engine>/` |
 | `haplotype` | 局部 Haplotype 分析 | `python scripts/python/main.py haplotype --config ...` | `haplo.stats` | 已实现 | `output/haplotype/` |
 | `quant-assoc` | 连续表型关联分析 | `python scripts/python/main.py quant-assoc --config ...` | `PLINK2` | 已实现 | `output/quant_assoc_<engine>/` |
+| `gwas-gene-catalog` | 基因级 GWAS Catalog 证据回填 | `python scripts/python/main.py gwas-gene-catalog --config ...` | GWAS Catalog TSV / HTTP 下载 | 已实现 | `output/gwas_gene_catalog/` |
 | `gwas-overlap` | GWAS hits 重叠分析 | `python scripts/python/main.py gwas-overlap --config ...` | `bedtools` | 已实现 | `output/gwas_overlap/` |
 
 ### 4.1 Burden 模块
@@ -459,7 +466,51 @@ python scripts/python/main.py skato --config config/regenie_example.yaml
 - `distance_bp`
 - `category`
 
----
+### 4.6 GWAS Catalog 基因注释模块
+
+方法名称：
+
+- `gwas-gene-catalog`
+
+用途：
+
+- 针对本地结果表中的每个基因，检索 GWAS Catalog 中已有的关联证据
+- 将是否命中、命中条数、trait 摘要、最显著结果和研究编号等信息回填到主表
+- 同时额外输出一张命中明细表，便于后续追溯
+
+实现方式：
+
+- 读取本地基因级结果表
+- 按配置指定的 `gene_column` 提取 gene symbol
+- 读取本地 GWAS Catalog TSV，或从远程 URL 下载 TSV
+- 以 gene symbol 为键，在 `MAPPED_GENE(S)` / `REPORTED GENE(S)` 等字段中做精确匹配
+- 为每个 gene 生成摘要列，并输出命中明细表
+
+输入文件：
+
+- `project_result_file`，一行一个基因的本地结果表
+- `gwas_reference_file`，或远程 `gwas_catalog_tsv_url`
+- `config.yaml`
+
+输出文件：
+
+- `output/gwas_gene_catalog/project_results_with_gwas_catalog.tsv`
+- `output/gwas_gene_catalog/gwas_catalog_gene_hits.tsv`
+- `output/gwas_gene_catalog/run_metadata.json`
+
+结果解读重点：
+
+- `gwas_catalog_found`
+- `gwas_catalog_result_count`
+- `gwas_catalog_traits`
+- `gwas_catalog_top_pvalue`
+- `gwas_catalog_top_study`
+
+说明：
+
+- 主表保留 gene 级摘要信息，适合浏览和交付
+- 明细表按 “一个 gene 命中的一条 GWAS Catalog 记录” 展开，适合追溯
+- 当前实现默认支持在 `mapped_genes` 和 `reported_genes` 两类字段中匹配
 
 ## 5. 输入文件说明
 
@@ -516,6 +567,7 @@ S2	41	1	-0.01	0.00
 默认配置文件：
 
 - [default.yaml](D:\Genos\生信工具分析\genetic_support_tool\config\default.yaml)
+- [gwas_gene_catalog_demo.yaml](D:\Genos\生信工具分析\genetic_support_tool\config\gwas_gene_catalog_demo.yaml)
 - [regenie_example.yaml](D:\Genos\生信工具分析\genetic_support_tool\config\regenie_example.yaml)
 - [quant_assoc_plink2_example.yaml](D:\Genos\生信工具分析\genetic_support_tool\config\quant_assoc_plink2_example.yaml)
 
@@ -528,6 +580,11 @@ regenie 示例模板文件：
 - [example.annotations](D:\Genos\生信工具分析\genetic_support_tool\data\regenie\example.annotations)
 - [example.setlist](D:\Genos\生信工具分析\genetic_support_tool\data\regenie\example.setlist)
 - [example.masks](D:\Genos\生信工具分析\genetic_support_tool\data\regenie\example.masks)
+
+GWAS Catalog 基因注释示例文件：
+
+- [project_genes.tsv](D:\Genos\生信工具分析\genetic_support_tool\data\gwas_gene_catalog\project_genes.tsv)
+- [gwas_catalog_reference.tsv](D:\Genos\生信工具分析\genetic_support_tool\data\gwas_gene_catalog\gwas_catalog_reference.tsv)
 
 示例：
 
@@ -592,6 +649,11 @@ output:
 - `regenie.genotype_format`：`pfile` 或 `bfile`
 - `input.pred_file`：`regenie` step 1 输出的 prediction 文件；当 `regenie_ignore_pred=false` 时必填
 - `quant_assoc.covar_variance_standardize`：是否对协变量做方差标准化，建议设为 `true`
+- `gwas_gene_catalog.project_result_file`：本地基因级结果表路径
+- `gwas_gene_catalog.gene_column`：gene symbol 所在列名，默认 `gene`
+- `gwas_gene_catalog.gwas_reference_file`：本地 GWAS Catalog 参考 TSV
+- `gwas_gene_catalog.gwas_catalog_tsv_url`：远程 GWAS Catalog TSV 下载地址
+- `gwas_gene_catalog.match_fields`：匹配字段范围，支持 `mapped_genes`、`reported_genes`
 - `output.root_dir`：输出根目录
 
 ---
@@ -901,6 +963,8 @@ Rscript -e 'dir.create(Sys.getenv("R_LIBS_USER"), recursive=TRUE, showWarnings=F
 
 如果需要运行 `gwas-overlap`，还需要安装 `bedtools` 并确保命令可用。
 
+如果需要运行 `gwas-gene-catalog`，默认不依赖额外命令行工具；如需远程下载 GWAS Catalog TSV，只需保证服务器能够访问对应 URL。
+
 ### 8.2 CentOS / RHEL
 
 ```bash
@@ -978,6 +1042,12 @@ python scripts/python/main.py quant-assoc --config config/quant_assoc_plink2_exa
 
 ```bash
 python scripts/python/main.py gwas-overlap --config config/gwas_overlap_demo.yaml
+```
+
+### 9.8 GWAS Catalog 基因注释示例
+
+```bash
+python scripts/python/main.py gwas-gene-catalog --config config/gwas_gene_catalog_demo.yaml
 ```
 
 ---
@@ -1148,8 +1218,42 @@ python scripts/python/main.py gwas-overlap --config config/gwas_overlap_demo.yam
 - `near_known`
 - `novel`
 
----
+### 10.6 GWAS Catalog 基因注释输出
 
+目录：
+
+- `output/gwas_gene_catalog/`
+
+文件：
+
+- `project_results_with_gwas_catalog.tsv`
+- `gwas_catalog_gene_hits.tsv`
+- `run_metadata.json`
+
+`project_results_with_gwas_catalog.tsv` 主要新增字段：
+
+- `gwas_catalog_found`
+- `gwas_catalog_result_count`
+- `gwas_catalog_traits`
+- `gwas_catalog_reported_traits`
+- `gwas_catalog_mapped_genes`
+- `gwas_catalog_top_variant`
+- `gwas_catalog_top_pvalue`
+- `gwas_catalog_top_study`
+- `gwas_catalog_study_accessions`
+
+解读：
+
+- `gwas_catalog_found` 表示该 gene 是否在 GWAS Catalog 中检索到命中
+- `gwas_catalog_result_count` 表示命中条数
+- `gwas_catalog_traits` 和 `gwas_catalog_reported_traits` 为去重后的 trait 摘要
+- `gwas_catalog_top_pvalue` 表示该 gene 命中记录中最显著的一条
+- `gwas_catalog_top_study` 和 `gwas_catalog_study_accessions` 便于后续回溯原始研究
+
+`gwas_catalog_gene_hits.tsv` 说明：
+
+- 一行对应一个 gene 命中的一条 GWAS Catalog 记录
+- 适合做追溯、人工核查和二次筛选
 ## 11. 使用说明
 
 建议使用顺序：
@@ -1159,6 +1263,7 @@ python scripts/python/main.py gwas-overlap --config config/gwas_overlap_demo.yam
 3. 根据方法准备输入文件
    - `burden / skato / haplotype`：准备 `geno_matrix.tsv`、`pheno.tsv`、`covar.tsv`
    - `quant-assoc`：准备 `PLINK2` 原生输入文件和 `pheno.tsv`、`covar.tsv`
+   - `gwas-gene-catalog`：准备基因级结果表和 GWAS Catalog 参考 TSV
    - `gwas-overlap`：准备项目结果表和 GWAS 参考结果表
 4. 编辑配置文件
 5. 执行对应命令
@@ -1182,11 +1287,12 @@ python scripts/python/main.py gwas-overlap --config config/gwas_overlap_demo.yam
 - SKAT-O 方法
 - 局部 Haplotype 方法
 - 连续表型关联分析方法
+- GWAS Catalog 基因注释方法
 - GWAS Overlap 方法
 - 示例数据
 - 服务器部署说明
 
-后续可在当前框架上继续扩展更多遗传学支撑分析模块，并在现有 5 个模块基础上增强输入适配、批量分析、显著结果汇总和可视化输出能力。
+后续可在当前框架上继续扩展更多遗传学支撑分析模块，并在现有 6 个模块基础上增强输入适配、批量分析、显著结果汇总和可视化输出能力。
 
 ---
 

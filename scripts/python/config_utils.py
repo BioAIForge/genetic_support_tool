@@ -61,7 +61,7 @@ def validate_config(config: dict[str, Any], config_path: Path) -> None:
             "Supported values are 'pfile' and 'bfile'."
         )
 
-    for section_name in ("burden", "skato", "haplotype", "quant_assoc"):
+    for section_name in ("burden", "skato", "haplotype", "quant_assoc", "gwas_gene_catalog"):
         section = config.get(section_name)
         if section is None:
             continue
@@ -103,6 +103,22 @@ def validate_config(config: dict[str, Any], config_path: Path) -> None:
         present_keys = sorted(key for key in quant_input_keys if key in input_cfg)
         if len(present_keys) > 1:
             raise ValueError(
-                f"Quant association input is ambiguous in {config_path}: "
-                f"found multiple input prefixes {present_keys}. Use only one."
-            )
+                    f"Quant association input is ambiguous in {config_path}: "
+                    f"found multiple input prefixes {present_keys}. Use only one."
+                )
+
+    gwas_gene_catalog_cfg = config.get("gwas_gene_catalog", {})
+    if isinstance(gwas_gene_catalog_cfg, dict):
+        match_fields = gwas_gene_catalog_cfg.get("match_fields")
+        if match_fields is not None:
+            allowed_fields = {"mapped_genes", "reported_genes"}
+            if not isinstance(match_fields, list) or any(not isinstance(item, str) for item in match_fields):
+                raise ValueError(
+                    f"gwas_gene_catalog.match_fields must be a list of strings in {config_path}"
+                )
+            invalid_fields = sorted(set(match_fields) - allowed_fields)
+            if invalid_fields:
+                raise ValueError(
+                    f"Unsupported gwas_gene_catalog.match_fields in {config_path}: {invalid_fields}. "
+                    f"Supported values are {sorted(allowed_fields)}."
+                )

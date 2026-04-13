@@ -6,6 +6,7 @@ from pathlib import Path
 
 from config_utils import load_config
 from run_burden import run_burden
+from run_gwas_gene_catalog import run_gwas_gene_catalog
 from run_gwas_overlap import run_gwas_overlap
 from run_haplotype import run_haplotype
 from run_quant_assoc import run_quant_assoc
@@ -68,6 +69,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to YAML config file.",
     )
 
+    gene_catalog_parser = subparsers.add_parser(
+        "gwas-gene-catalog",
+        help="Annotate gene-level results with GWAS Catalog evidence.",
+    )
+    gene_catalog_parser.add_argument(
+        "--config",
+        required=True,
+        help="Path to YAML config file.",
+    )
+
     return parser
 
 
@@ -105,6 +116,12 @@ def main() -> int:
         config = load_config(project_root / args.config)
         result_path = run_gwas_overlap(config, project_root)
         print(f"GWAS overlap analysis completed: {result_path}")
+        return 0
+
+    if args.command == "gwas-gene-catalog":
+        config = load_config(project_root / args.config)
+        result_path = run_gwas_gene_catalog(config, project_root)
+        print(f"GWAS gene catalog annotation completed: {result_path}")
         return 0
 
     parser.error(f"Unsupported command: {args.command}")
