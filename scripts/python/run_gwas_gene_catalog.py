@@ -107,8 +107,9 @@ def _extract_strings(value: Any) -> list[str]:
             result.extend(_extract_strings(item))
         return result
     if isinstance(value, dict):
-        result: list[str] = []
         preferred_keys = (
+            "efo_trait",
+            "reported_trait",
             "trait",
             "label",
             "name",
@@ -124,9 +125,10 @@ def _extract_strings(value: Any) -> list[str]:
         )
         for key in preferred_keys:
             if key in value:
-                result.extend(_extract_strings(value[key]))
-        if result:
-            return result
+                extracted = _extract_strings(value[key])
+                if extracted:
+                    return extracted
+        result: list[str] = []
         for item in value.values():
             result.extend(_extract_strings(item))
         return result
@@ -168,6 +170,43 @@ def _extract_api_gene_list(item: Any, fallback_text: str = "") -> list[str]:
     return result
 
 
+def _extract_rsids(item: Any) -> list[str]:
+    if item is None:
+        return []
+    if isinstance(item, list):
+        rsids: list[str] = []
+        for entry in item:
+            if isinstance(entry, dict):
+                rs_id = entry.get("rs_id") or entry.get("rsId")
+                if rs_id:
+                    rsids.append(str(rs_id))
+                else:
+                    rsids.extend(_extract_rsids(entry))
+            else:
+                rsids.extend(_extract_rsids(entry))
+        return rsids
+    if isinstance(item, dict):
+        rs_id = item.get("rs_id") or item.get("rsId")
+        if rs_id:
+            return [str(rs_id)]
+    if isinstance(item, str) and item.startswith("rs"):
+        return [item]
+    return []
+
+
+def _extract_variant_from_links(links: Any) -> list[str]:
+    if not isinstance(links, dict):
+        return []
+    snp_link = links.get("snp")
+    if not isinstance(snp_link, dict):
+        return []
+    href = snp_link.get("href")
+    if not isinstance(href, str):
+        return []
+    token = href.rstrip("/").split("/")[-1]
+    return [token] if token.startswith("rs") else []
+
+
 def _normalize_api_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     normalized_rows: list[dict[str, Any]] = []
     for row in rows:
@@ -176,38 +215,54 @@ def _normalize_api_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             row.get("reportedGenes")
             or row.get("reportedGene")
             or row.get("reported_genes")
-            or row.get("reportedTrait")  # harmless fallback when genes are absent
         )
-        trait_field = row.get("diseaseTrait") or row.get("trait") or row.get("efoTraits") or row.get("efoTrait")
-        variant_field = row.get("variantId") or row.get("rsId") or row.get("snps")
-        study_field = row.get("studyAccession") or row.get("study") or row.get("study accession")
-        author_field = row.get("firstAuthor") or row.get("author")
-        pubmed_field = row.get("pubmedId") or row.get("pubmed_id")
+        trait_field = (
+            row.get("efo_traits")
+            or row.get("efoTraits")
+            or row.get("diseaseTrait")
+            or row.get("trait")
+            or row.get("efoTrait")
+        )
+        reported_trait_field = row.get("reported_trait") or row.get("reportedTrait") or row.get("diseaseTrait")
+        study_field = (
+            row.get("accession_id")
+            or row.get("studyAccession")
+            or row.get("study")
+            or row.get("study accession")
+        )
+        author_field = row.get("first_author") or row.get("firstAuthor") or row.get("author")
+        pubmed_field = row.get("pubmed_id") or row.get("pubmedId")
 
         study_values = _extract_strings(study_field)
-        study_accession = ""
-        if study_values:
-            study_accession = study_values[0]
+        study_accession = study_values[0] if study_values else ""
 
         first_author_values = _extract_strings(author_field)
         first_author = first_author_values[0] if first_author_values else ""
         pubmed_values = _extract_strings(pubmed_field)
         pubmed_id = pubmed_values[0] if pubmed_values else ""
 
-        pvalue = row.get("pvalue")
+        pvalue = row.get("p_value")
+        if pvalue is None:
+            pvalue = row.get("pvalue")
         if pvalue is None:
             pvalue = row.get("pValue")
         pvalue_value = _parse_pvalue(str(pvalue)) if pvalue is not None else None
+
+        variant_values = _extract_rsids(row.get("snp_allele"))
+        if not variant_values:
+            variant_values = _extract_strings(row.get("snp_effect_allele"))
+        if not variant_values:
+            variant_values = _extract_strings(row.get("variantId") or row.get("rsId") or row.get("snps"))
+        if not variant_values:
+            variant_values = _extract_variant_from_links(row.get("_links"))
 
         normalized_rows.append(
             {
                 "mapped_genes": _extract_api_gene_list(mapped_gene_field),
                 "reported_genes": _extract_api_gene_list(reported_gene_field),
                 "trait": "; ".join(dict.fromkeys(_extract_strings(trait_field))),
-                "reported_trait": "; ".join(
-                    dict.fromkeys(_extract_strings(row.get("reportedTrait") or row.get("diseaseTrait")))
-                ),
-                "variant": "; ".join(dict.fromkeys(_extract_strings(variant_field))),
+                "reported_trait": "; ".join(dict.fromkeys(_extract_strings(reported_trait_field))),
+                "variant": "; ".join(dict.fromkeys(variant_values)),
                 "pvalue": pvalue_value,
                 "study_accession": study_accession,
                 "first_author": first_author,
