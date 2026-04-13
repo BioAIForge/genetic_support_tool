@@ -179,14 +179,22 @@ genetic_support_tool/
 
 输出文件：
 
-- `output/burden/burden_result.tsv`
-- `output/burden/burden_scores.tsv`
-- `output/burden/run_metadata.json`
+- `engine=base` / `engine=skat`
+  - `output/burden/burden_result.tsv`
+  - `output/burden/burden_scores.tsv`
+  - `output/burden/run_metadata.json`
+- `engine=regenie`
+  - `output/burden/regenie_burden_<phenotype>.regenie`
+  - `output/burden/run_metadata.json`
 
 结果解读重点：
 
-- `burden_pvalue`
-- 在 `engine=base` 下还需结合 `burden_beta_or_logodds`
+- `engine=base` / `engine=skat`
+  - `burden_pvalue`
+  - 在 `engine=base` 下还需结合 `burden_beta_or_logodds`
+- `engine=regenie`
+  - 直接查看 regenie 原始结果文件中的 `P` / `LOG10P`、`TEST`、`ID`、`N`、`NBURDEN` 等字段
+  - `run_metadata.json` 中的 `result_file` 会指向原始 `.regenie` 文件
 
 ### 4.2 SKAT-O 模块
 
@@ -228,17 +236,26 @@ genetic_support_tool/
 
 输出文件：
 
-- `output/skato/skato_result.tsv`
-- `output/skato/run_metadata.json`
+- `engine=skat`
+  - `output/skato/skato_result.tsv`
+  - `output/skato/run_metadata.json`
+- `engine=regenie`
+  - `output/skato/regenie_skato_<phenotype>.regenie`
+  - `output/skato/run_metadata.json`
 
 结果解读重点：
 
-- `skato_pvalue`
+- `engine=skat`
+  - `skato_pvalue`
+- `engine=regenie`
+  - 直接查看 regenie 原始结果文件中的 `P` / `LOG10P`、`TEST`、`ID`、`N`、`NBURDEN` 等字段
+  - `run_metadata.json` 中的 `result_file` 会指向原始 `.regenie` 文件
 
 说明：
 
 - `SKAT-O` 重点输出集合层面的显著性
 - 当前版本不输出统一的 `beta` 和 `SE`
+- `engine=regenie` 时不再额外封装统一结果表，保留 regenie 原始输出
 
 ### 4.3 局部 Haplotype 模块
 
@@ -616,6 +633,7 @@ Rscript -e 'dir.create(Sys.getenv("R_LIBS_USER"), recursive=TRUE, showWarnings=F
 - demo 运行前仍需先将 [example_dataset.ped](D:\Genos\生信工具分析\genetic_support_tool\data\regenie\example_dataset.ped) / [example_dataset.map](D:\Genos\生信工具分析\genetic_support_tool\data\regenie\example_dataset.map) 转成 `PGEN`
 - 真实分析建议使用 step 1 生成的 `pred` 文件；demo 可通过 `regenie_ignore_pred=true` 跳过
 - toy demo 的 `regenie_aaf_bins` 已放宽到 `1.0`，否则示例数据会因过于常见而生成空结果
+- 当前 `burden.engine=regenie` 与 `skato.engine=regenie` 会直接保留 regenie 原始输出文件，不再额外封装统一 TSV 结果表
 
 验证命令：
 
@@ -908,9 +926,13 @@ python scripts/python/main.py gwas-overlap --config config/gwas_overlap_demo.yam
 
 文件：
 
-- `burden_result.tsv`
-- `burden_scores.tsv`
-- `run_metadata.json`
+- `engine=base` / `engine=skat`
+  - `burden_result.tsv`
+  - `burden_scores.tsv`
+  - `run_metadata.json`
+- `engine=regenie`
+  - `regenie_burden_<phenotype>.regenie`
+  - `run_metadata.json`
 
 `burden_result.tsv` 主要字段：
 
@@ -930,7 +952,9 @@ python scripts/python/main.py gwas-overlap --config config/gwas_overlap_demo.yam
 - `burden_pvalue` 是最核心结果
 - `engine=base` 时，可以结合 `beta` 判断方向和效应大小
 - `engine=skat` 时，`beta` 和 `SE` 可能为 `NA`，此时重点看集合层面的 `pvalue`
-- `engine=regenie` 时，结果来自 regenie set-based burden 检验，重点看 `burden_pvalue`
+- `engine=regenie` 时，不再额外生成统一封装的 `burden_result.tsv`
+- `engine=regenie` 时，结果来自 regenie set-based burden 检验，直接查看原始 `.regenie` 文件中的 `P` / `LOG10P`、`TEST`、`ID`、`N`、`NBURDEN` 等字段
+- `engine=regenie` 时，`run_metadata.json` 中的 `result_file` 会指向原始 `.regenie` 文件
 
 `burden_scores.tsv` 主要字段：
 
@@ -951,8 +975,12 @@ python scripts/python/main.py gwas-overlap --config config/gwas_overlap_demo.yam
 
 文件：
 
-- `skato_result.tsv`
-- `run_metadata.json`
+- `engine=skat`
+  - `skato_result.tsv`
+  - `run_metadata.json`
+- `engine=regenie`
+  - `regenie_skato_<phenotype>.regenie`
+  - `run_metadata.json`
 
 `skato_result.tsv` 主要字段：
 
@@ -969,7 +997,9 @@ python scripts/python/main.py gwas-overlap --config config/gwas_overlap_demo.yam
 
 - `skato_pvalue` 是核心结果
 - `P` 越小，说明该变异集合与表型关联越明显
-- `engine=regenie` 时，`skato_model` 会显示为 `regenie_skato`
+- `engine=regenie` 时，不再额外生成统一封装的 `skato_result.tsv`
+- `engine=regenie` 时，直接查看原始 `.regenie` 文件中的 `P` / `LOG10P`、`TEST`、`ID`、`N`、`NBURDEN` 等字段
+- `engine=regenie` 时，`run_metadata.json` 中的 `result_file` 会指向原始 `.regenie` 文件
 
 ### 10.3 Haplotype 输出
 

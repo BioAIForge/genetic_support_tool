@@ -12,7 +12,6 @@ from path_utils import resolve_output_root
 from run_regenie import (
     build_regenie_metadata,
     ensure_exists as ensure_regenie_exists,
-    parse_regenie_to_burden_result,
     run_regenie_set_tests,
     write_metadata,
 )
@@ -128,14 +127,6 @@ def run_burden(config: dict[str, Any], project_root: Path) -> Path:
             extra_args=extra_args,
             working_directory=project_root,
         )
-        parse_regenie_to_burden_result(
-            result_file=regenie_result,
-            set_id=set_id,
-            phenotype_name=phenotype_name,
-            phenotype_type=phenotype_type,
-            engine=engine,
-            output_file=result_tsv,
-        )
         metadata = build_regenie_metadata(
             method="burden",
             engine=engine,
@@ -152,8 +143,9 @@ def run_burden(config: dict[str, Any], project_root: Path) -> Path:
             result_file=regenie_result,
         )
         metadata["score_file"] = None
+        metadata["result_file"] = str(regenie_result)
         write_metadata(metadata_json, metadata)
-        return result_tsv
+        return regenie_result
 
     genotype_matrix = project_root / get_required(config, "input", "genotype_matrix")
     covariate_file = project_root / get_required(config, "input", "covariate_file")
