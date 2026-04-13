@@ -1,0 +1,4 @@
+variant_id	chr	pos	trait
+gwas_hit_a	1	100000	GLU
+gwas_hit_b	1	180000	GLU
+gwas_hit_c	2	520000	BMI

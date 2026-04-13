@@ -1,0 +1,62 @@
+project:
+  name: demo_genetic_support
+
+analysis:
+  method: burden
+
+input:
+  genotype_matrix: data/example/geno_matrix.tsv
+  phenotype_file: data/example/pheno.tsv
+  covariate_file: data/example/covar.tsv
+
+phenotype:
+  name: phenotype
+  type: continuous
+
+burden:
+  set_id: DEMO_GENE
+  engine: base
+  covariates:
+    - age
+    - sex
+    - PC1
+    - PC2
+
+skato:
+  set_id: DEMO_GENE
+  engine: skat
+  covariates:
+    - age
+    - sex
+    - PC1
+    - PC2
+
+regenie:
+  genotype_format: pfile
+
+haplotype:
+  set_id: DEMO_HAPLOTYPE
+  covariates:
+    - age
+    - sex
+    - PC1
+    - PC2
+
+quant_assoc:
+  engine: plink2
+  plink2_bin: plink2
+  covar_variance_standardize: true
+  covariates:
+    - age
+    - sex
+    - PC1
+    - PC2
+
+gwas_overlap:
+  project_result_file: data/gwas_overlap/project_hits.tsv
+  gwas_reference_file: data/gwas_overlap/gwas_reference.tsv
+  bedtools_bin: bedtools
+  window_kb: 100
+
+output:
+  root_dir: output

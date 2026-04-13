@@ -1,0 +1,51 @@
+project:
+  name: demo_genetic_support_regenie
+
+analysis:
+  method: burden
+
+input:
+  pfile_prefix: data/regenie/example_dataset
+  phenotype_file: data/regenie/example_pheno.tsv
+  covariate_file: data/regenie/example_covar.tsv
+  anno_file: data/regenie/example.annotations
+  set_list: data/regenie/example.setlist
+  mask_def: data/regenie/example.masks
+
+phenotype:
+  name: phenotype
+  type: continuous
+
+burden:
+  set_id: DEMO_GENE
+  engine: regenie
+  regenie_bin: regenie
+  regenie_aaf_bins: "1.0"
+  regenie_build_mask: max
+  regenie_ignore_pred: true
+  regenie_bsize: 200
+  covariates:
+    - age
+    - sex
+    - PC1
+    - PC2
+
+skato:
+  set_id: DEMO_GENE
+  engine: regenie
+  regenie_bin: regenie
+  regenie_aaf_bins: "1.0"
+  regenie_build_mask: max
+  regenie_ignore_pred: true
+  regenie_bsize: 200
+  covariates:
+    - age
+    - sex
+    - PC1
+    - PC2
+
+regenie:
+  genotype_format: pfile
+
+output:
+  root_dir: output

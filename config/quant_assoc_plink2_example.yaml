@@ -1,0 +1,27 @@
+project:
+  name: quant_assoc_plink2_example
+
+analysis:
+  method: quant_assoc
+
+input:
+  pedmap_prefix: data/plink2/example_dataset
+  phenotype_file: data/plink2/example_pheno.tsv
+  covariate_file: data/plink2/example_covar.tsv
+
+phenotype:
+  name: phenotype
+  type: continuous
+
+quant_assoc:
+  engine: plink2
+  plink2_bin: plink2
+  covar_variance_standardize: true
+  covariates:
+    - age
+    - sex
+    - PC1
+    - PC2
+
+output:
+  root_dir: output

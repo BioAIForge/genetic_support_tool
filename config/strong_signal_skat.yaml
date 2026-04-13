@@ -1,0 +1,22 @@
+project:
+  name: strong_signal_demo
+
+analysis:
+  method: burden
+
+input:
+  genotype_matrix: data/example_strong_signal/geno_matrix.tsv
+  phenotype_file: data/example_strong_signal/pheno.tsv
+  covariate_file: data/example_strong_signal/covar.tsv
+
+phenotype:
+  name: phenotype
+  type: continuous
+
+burden:
+  set_id: STRONG_SIGNAL_GENE
+  engine: skat
+  covariates: []
+
+output:
+  root_dir: output

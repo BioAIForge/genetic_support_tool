@@ -1,0 +1,16 @@
+.git
+.gitignore
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+output
+*.log
+*.tmp
+*.zip
+*.tar.gz
+!docker-assets/
+!docker-assets/.gitkeep
+!docker-assets/plink2.zip
+!docker-assets/haplo.stats_1.9.8.3.tar.gz
