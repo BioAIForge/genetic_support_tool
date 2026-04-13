@@ -146,8 +146,9 @@ def _extract_strings(value: Any) -> list[str]:
             result.extend(_extract_strings(item))
         return result
     if isinstance(value, dict):
-        result: list[str] = []
         preferred_keys = (
+            "efo_trait",
+            "reported_trait",
             "trait",
             "label",
             "name",
@@ -163,9 +164,10 @@ def _extract_strings(value: Any) -> list[str]:
         )
         for key in preferred_keys:
             if key in value:
-                result.extend(_extract_strings(value[key]))
-        if result:
-            return result
+                extracted = _extract_strings(value[key])
+                if extracted:
+                    return extracted
+        result: list[str] = []
         for item in value.values():
             result.extend(_extract_strings(item))
         return result
@@ -207,6 +209,43 @@ def _extract_api_gene_list(item: Any, fallback_text: str = "") -> list[str]:
     return result
 
 
+def _extract_rsids(item: Any) -> list[str]:
+    if item is None:
+        return []
+    if isinstance(item, list):
+        rsids: list[str] = []
+        for entry in item:
+            if isinstance(entry, dict):
+                rs_id = entry.get("rs_id") or entry.get("rsId")
+                if rs_id:
+                    rsids.append(str(rs_id))
+                else:
+                    rsids.extend(_extract_rsids(entry))
+            else:
+                rsids.extend(_extract_rsids(entry))
+        return rsids
+    if isinstance(item, dict):
+        rs_id = item.get("rs_id") or item.get("rsId")
+        if rs_id:
+            return [str(rs_id)]
+    if isinstance(item, str) and item.startswith("rs"):
+        return [item]
+    return []
+
+
+def _extract_variant_from_links(links: Any) -> list[str]:
+    if not isinstance(links, dict):
+        return []
+    snp_link = links.get("snp")
+    if not isinstance(snp_link, dict):
+        return []
+    href = snp_link.get("href")
+    if not isinstance(href, str):
+        return []
+    token = href.rstrip("/").split("/")[-1]
+    return [token] if token.startswith("rs") else []
+
+
 def _normalize_api_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     normalized_rows: list[dict[str, Any]] = []
     for row in rows:
@@ -217,7 +256,6 @@ def _normalize_api_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             row.get("reportedGenes")
             or row.get("reportedGene")
             or row.get("reported_genes")
-            or row.get("reportedTrait")  # harmless fallback when genes are absent
         )
 
         # traits - efo_traits 是列表，每个元素有 efo_id 和 efo_trait
@@ -233,15 +271,26 @@ def _normalize_api_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         else:
             reported_trait_strs = _extract_strings(reported_trait_list)
 
-        # variant - snp_allele 是列表，包含 rs_id 和 effect_allele
+        # variant - 多种提取方式
+        variant_list: list[str] = []
+        # 方式1: snp_allele
         snp_alleles = row.get("snp_allele", [])
-        variant_list = []
         if isinstance(snp_alleles, list):
             for sa in snp_alleles:
                 if isinstance(sa, dict):
                     rs_id = sa.get("rs_id", "")
                     if rs_id:
                         variant_list.append(rs_id)
+        # 方式2: snp_effect_allele
+        if not variant_list:
+            snp_effect_allele = row.get("snp_effect_allele", [])
+            variant_list = _extract_strings(snp_effect_allele)
+        # 方式3: variantId/rsId/snps
+        if not variant_list:
+            variant_list = _extract_strings(row.get("variantId") or row.get("rsId") or row.get("snps"))
+        # 方式4: _links.snp
+        if not variant_list:
+            variant_list = _extract_variant_from_links(row.get("_links"))
 
         # study
         study_accession = str(row.get("accession_id", ""))
