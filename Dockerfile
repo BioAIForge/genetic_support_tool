@@ -58,6 +58,8 @@ ENV PATH="/opt/tools/plink2:${PATH}"
 
 COPY . /app
 
+RUN python3 scripts/python/make_plink2_example.py
+
 RUN mkdir -p /work/output
 VOLUME ["/work"]
 
