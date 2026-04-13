@@ -771,6 +771,9 @@ plink2 --version
 - `quant-assoc` 当前不依赖 R 包
 - 需要在执行环境中预先安装 `plink2`，并保证命令可在 PATH 中调用
 - 如果 `plink2` 不在 PATH 中，可在配置文件中通过 `quant_assoc.plink2_bin` 指定可执行文件路径
+- 官方文档对本项目使用的 `--pedmap`、`--make-pgen`、`--glm` 没有单独给出硬性最低版本号
+- 由于 `PLINK 2.0 alpha` 仍在持续更新，且 `--make-pgen` / `--glm` 在近期官方构建中仍有 bugfix，建议使用官方近期 alpha 构建，而不要使用过旧 build
+- 本项目当前已在 `PLINK v2.0.0-a.7LM (11 Mar 2026)` 上验证相关命令链路
 
 `plink2` 安装建议：
 
@@ -802,6 +805,8 @@ plink2 --version
 - 官方下载与输入格式说明见：
   - https://www.cog-genomics.org/plink/2.0/
   - https://www.cog-genomics.org/plink/2.0/input
+  - https://www.cog-genomics.org/plink/2.0/data
+  - https://www.cog-genomics.org/plink/2.0/assoc
 
 #### GWAS Overlap
 
