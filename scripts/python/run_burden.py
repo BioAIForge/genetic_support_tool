@@ -53,7 +53,7 @@ def run_burden(config: dict[str, Any], project_root: Path) -> Path:
     set_id = get_required(config, "burden", "set_id")
     engine = get_required(config, "burden", "engine")
     output_root = resolve_output_root(project_root, get_required(config, "output", "root_dir"))
-    output_dir = output_root / "burden"
+    output_dir = output_root / f"burden_{engine}"
     _ensure_exists(phenotype_file, "Phenotype file")
 
     output_dir.mkdir(parents=True, exist_ok=True)

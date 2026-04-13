@@ -15,7 +15,7 @@ phenotype:
 
 burden:
   set_id: DEMO_GENE
-  engine: base
+  engine: skat
   covariates:
     - age
     - sex

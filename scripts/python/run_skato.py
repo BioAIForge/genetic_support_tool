@@ -53,7 +53,7 @@ def run_skato(config: dict[str, Any], project_root: Path) -> Path:
     set_id = get_required(config, "skato", "set_id")
     engine = config.get("skato", {}).get("engine", "skat")
     output_root = resolve_output_root(project_root, get_required(config, "output", "root_dir"))
-    output_dir = output_root / "skato"
+    output_dir = output_root / f"skato_{engine}"
 
     _ensure_exists(phenotype_file, "Phenotype file")
 

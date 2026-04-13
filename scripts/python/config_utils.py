@@ -75,6 +75,24 @@ def validate_config(config: dict[str, Any], config_path: Path) -> None:
                     f"{section_name}.covariates must be a list of strings in {config_path}"
                 )
 
+    burden_cfg = config.get("burden", {})
+    if isinstance(burden_cfg, dict):
+        burden_engine = burden_cfg.get("engine")
+        if burden_engine is not None and burden_engine not in {"skat", "regenie"}:
+            raise ValueError(
+                f"Invalid burden.engine in {config_path}: {burden_engine!r}. "
+                "Supported values are 'skat' and 'regenie'."
+            )
+
+    skato_cfg = config.get("skato", {})
+    if isinstance(skato_cfg, dict):
+        skato_engine = skato_cfg.get("engine")
+        if skato_engine is not None and skato_engine not in {"skat", "regenie"}:
+            raise ValueError(
+                f"Invalid skato.engine in {config_path}: {skato_engine!r}. "
+                "Supported values are 'skat' and 'regenie'."
+            )
+
     input_cfg = config.get("input", {})
     if not isinstance(input_cfg, dict):
         raise ValueError(f"Config section input must be a mapping in {config_path}")

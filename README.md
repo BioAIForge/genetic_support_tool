@@ -67,7 +67,6 @@ genetic_support_tool/
     gwas_overlap_demo.yaml
     regenie_example.yaml
     quant_assoc_plink2_example.yaml
-    strong_signal_base.yaml
     strong_signal_haplotype.yaml
     strong_signal_skat.yaml
     strong_signal_skato.yaml
@@ -125,7 +124,7 @@ pip install -r requirements.txt
 
 mkdir -p ~/R/library
 export R_LIBS_USER=~/R/library
-Rscript -e 'dir.create(Sys.getenv("R_LIBS_USER"), recursive=TRUE, showWarnings=FALSE); .libPaths(c(Sys.getenv("R_LIBS_USER"), .libPaths())); install.packages(c("optparse","jsonlite"), repos="https://cloud.r-project.org")'
+Rscript -e 'dir.create(Sys.getenv("R_LIBS_USER"), recursive=TRUE, showWarnings=FALSE); .libPaths(c(Sys.getenv("R_LIBS_USER"), .libPaths())); install.packages(c("optparse","jsonlite","SKAT"), repos="https://cloud.r-project.org")'
 ```
 
 完成后，建议先跑一个最小 smoke test：
@@ -134,7 +133,7 @@ Rscript -e 'dir.create(Sys.getenv("R_LIBS_USER"), recursive=TRUE, showWarnings=F
 python scripts/python/main.py burden --config config/default.yaml
 ```
 
-如果该命令可以成功生成 `output/burden/` 下的结果文件，说明：
+如果该命令可以成功生成 `output/burden_skat/` 下的结果文件，说明：
 
 - Python 入口可用
 - YAML 配置解析可用
@@ -205,13 +204,13 @@ python scripts/python/main.py skato --config config/regenie_example.yaml
 
 ### 4.0 模块总览
 
-| 模块名称 | 命令行入口 | 当前实现状态 | 主要输出 |
-|---|---|---|---|
-| `burden` | `python scripts/python/main.py burden --config ...` | 已实现 | `output/burden/` |
-| `skato` | `python scripts/python/main.py skato --config ...` | 已实现 | `output/skato/` |
-| `haplotype` | `python scripts/python/main.py haplotype --config ...` | 已实现 | `output/haplotype/` |
-| `quant-assoc` | `python scripts/python/main.py quant-assoc --config ...` | 已实现 | `output/quant_assoc/` |
-| `gwas-overlap` | `python scripts/python/main.py gwas-overlap --config ...` | 已实现 | `output/gwas_overlap/` |
+| 模块名称 | 方法名 | 命令行入口 | 主要外部工具 / R 包 | 当前实现状态 | 主要输出 |
+|---|---|---|---|---|---|
+| `burden` | Burden 集合检验 | `python scripts/python/main.py burden --config ...` | `SKAT`、`regenie` | 已实现 | `output/burden_<engine>/` |
+| `skato` | SKAT-O 集合检验 | `python scripts/python/main.py skato --config ...` | `SKAT`、`regenie` | 已实现 | `output/skato_<engine>/` |
+| `haplotype` | 局部 Haplotype 分析 | `python scripts/python/main.py haplotype --config ...` | `haplo.stats` | 已实现 | `output/haplotype/` |
+| `quant-assoc` | 连续表型关联分析 | `python scripts/python/main.py quant-assoc --config ...` | `PLINK2` | 已实现 | `output/quant_assoc_<engine>/` |
+| `gwas-overlap` | GWAS hits 重叠分析 | `python scripts/python/main.py gwas-overlap --config ...` | `bedtools` | 已实现 | `output/gwas_overlap/` |
 
 ### 4.1 Burden 模块
 
@@ -225,25 +224,6 @@ python scripts/python/main.py skato --config config/regenie_example.yaml
 - 判断总体变异负荷是否与目标表型相关
 
 当前支持引擎：
-
-#### `engine=base`
-
-说明：
-
-- 基础版 Burden 实现
-- 先计算每个样本的 `burden_score`
-- 再对表型做回归分析
-
-适用场景：
-
-- 快速验证流程
-- 检查输入输出是否正确
-- 需要直观查看 `beta`、`SE` 和 `P 值`
-
-统计方式：
-
-- 连续表型：线性回归
-- 二分类表型：逻辑回归
 
 #### `engine=skat`
 
@@ -269,7 +249,7 @@ python scripts/python/main.py skato --config config/regenie_example.yaml
 
 输入文件：
 
-- `engine=base` / `engine=skat`
+- `engine=skat`
   - `geno_matrix.tsv`
   - `pheno.tsv`
   - `covar.tsv`
@@ -283,19 +263,18 @@ python scripts/python/main.py skato --config config/regenie_example.yaml
 
 输出文件：
 
-- `engine=base` / `engine=skat`
-  - `output/burden/burden_result.tsv`
-  - `output/burden/burden_scores.tsv`
-  - `output/burden/run_metadata.json`
+- `engine=skat`
+  - `output/burden_skat/burden_result.tsv`
+  - `output/burden_skat/burden_scores.tsv`
+  - `output/burden_skat/run_metadata.json`
 - `engine=regenie`
-  - `output/burden/regenie_burden_<phenotype>.regenie`
-  - `output/burden/run_metadata.json`
+  - `output/burden_regenie/regenie_burden_<phenotype>.regenie`
+  - `output/burden_regenie/run_metadata.json`
 
 结果解读重点：
 
-- `engine=base` / `engine=skat`
+- `engine=skat`
   - `burden_pvalue`
-  - 在 `engine=base` 下还需结合 `burden_beta_or_logodds`
 - `engine=regenie`
   - 直接查看 regenie 原始结果文件中的 `P` / `LOG10P`、`TEST`、`ID`、`N`、`NBURDEN` 等字段
   - `run_metadata.json` 中的 `result_file` 会指向原始 `.regenie` 文件
@@ -341,11 +320,11 @@ python scripts/python/main.py skato --config config/regenie_example.yaml
 输出文件：
 
 - `engine=skat`
-  - `output/skato/skato_result.tsv`
-  - `output/skato/run_metadata.json`
+  - `output/skato_skat/skato_result.tsv`
+  - `output/skato_skat/run_metadata.json`
 - `engine=regenie`
-  - `output/skato/regenie_skato_<phenotype>.regenie`
-  - `output/skato/run_metadata.json`
+  - `output/skato_regenie/regenie_skato_<phenotype>.regenie`
+  - `output/skato_regenie/run_metadata.json`
 
 结果解读重点：
 
@@ -427,8 +406,8 @@ python scripts/python/main.py skato --config config/regenie_example.yaml
 
 输出文件：
 
-- `output/quant_assoc/quant_assoc_result.tsv`
-- `output/quant_assoc/run_metadata.json`
+- `output/quant_assoc_plink2/quant_assoc_result.tsv`
+- `output/quant_assoc_plink2/run_metadata.json`
 
 结果解读重点：
 
@@ -570,7 +549,7 @@ phenotype:
 
 burden:
   set_id: DEMO_GENE
-  engine: base
+  engine: skat
   covariates:
     - age
     - sex
@@ -595,7 +574,7 @@ output:
 - `phenotype.name`：表型列名
 - `phenotype.type`：`continuous` 或 `binary`
 - `burden.set_id`：Burden 分析对象名称
-- `burden.engine`：`base`、`skat` 或 `regenie`
+- `burden.engine`：`skat` 或 `regenie`
 - `burden.regenie_bin`：`regenie` 可执行文件路径，默认 `regenie`
 - `burden.regenie_aaf_bins`：set-based burden 的 AAF 分箱，默认 `0.01`
 - `burden.regenie_build_mask`：mask 聚合方式，默认 `max`
@@ -646,7 +625,7 @@ pip install -r requirements.txt
 - 如果需要稳定运行 `burden(engine=skat)`、`skato`、`haplotype` 等模块，建议在较新的 R 版本中部署
 - 由于 `haplo.stats` 已从 CRAN 主仓库移除，需通过 archive 包方式安装
 
-基础 R 包：
+Burden / SKAT-O / Haplotype 的基础 R 包：
 
 - `optparse`
 - `jsonlite`
@@ -660,17 +639,6 @@ Rscript -e 'dir.create(Sys.getenv("R_LIBS_USER"), recursive=TRUE, showWarnings=F
 ```
 
 ### 7.3 方法对应 R 包依赖
-
-#### Burden 基础版
-
-适用配置：
-
-- `burden.engine: base`
-
-需要：
-
-- `optparse`
-- `jsonlite`
 
 #### Burden 标准版
 
@@ -919,15 +887,12 @@ pip install -r requirements.txt
 mkdir -p ~/R/library
 export R_LIBS_USER=~/R/library
 Rscript -e 'dir.create(Sys.getenv("R_LIBS_USER"), recursive=TRUE, showWarnings=FALSE); .libPaths(c(Sys.getenv("R_LIBS_USER"), .libPaths())); install.packages(c("optparse","jsonlite"), repos="https://cloud.r-project.org")'
-```
-
-如果需要运行 `burden.engine=skat` 或 `skato`，再执行：
-
-```bash
 Rscript -e 'dir.create(Sys.getenv("R_LIBS_USER"), recursive=TRUE, showWarnings=FALSE); .libPaths(c(Sys.getenv("R_LIBS_USER"), .libPaths())); install.packages("SKAT", repos="https://cloud.r-project.org")'
 ```
 
-如果需要运行 `quant-assoc`，还需要安装 `plink2` 并确保命令可用。
+由于默认 Burden 引擎已经切换为 `SKAT`，建议在基础环境安装阶段直接完成 `SKAT` 安装。
+
+如果还需要运行 `quant-assoc`，还需要安装 `plink2` 并确保命令可用。
 
 如果需要运行 `gwas-overlap`，还需要安装 `bedtools` 并确保命令可用。
 
@@ -961,14 +926,6 @@ python scripts/python/main.py burden --config config/default.yaml
 ```
 
 ### 9.2 Burden 强信号测试
-
-基础版：
-
-```bash
-python scripts/python/main.py burden --config config/strong_signal_base.yaml
-```
-
-SKAT 版：
 
 ```bash
 python scripts/python/main.py burden --config config/strong_signal_skat.yaml
@@ -1026,11 +983,12 @@ python scripts/python/main.py gwas-overlap --config config/gwas_overlap_demo.yam
 
 目录：
 
-- `output/burden/`
+- `output/burden_skat/`
+- `output/burden_regenie/`
 
 文件：
 
-- `engine=base` / `engine=skat`
+- `engine=skat`
   - `burden_result.tsv`
   - `burden_scores.tsv`
   - `run_metadata.json`
@@ -1054,7 +1012,6 @@ python scripts/python/main.py gwas-overlap --config config/gwas_overlap_demo.yam
 解读：
 
 - `burden_pvalue` 是最核心结果
-- `engine=base` 时，可以结合 `beta` 判断方向和效应大小
 - `engine=skat` 时，`beta` 和 `SE` 可能为 `NA`，此时重点看集合层面的 `pvalue`
 - `engine=regenie` 时，不再额外生成统一封装的 `burden_result.tsv`
 - `engine=regenie` 时，结果来自 regenie set-based burden 检验，直接查看原始 `.regenie` 文件中的 `P` / `LOG10P`、`TEST`、`ID`、`N`、`NBURDEN` 等字段
@@ -1075,7 +1032,8 @@ python scripts/python/main.py gwas-overlap --config config/gwas_overlap_demo.yam
 
 目录：
 
-- `output/skato/`
+- `output/skato_skat/`
+- `output/skato_regenie/`
 
 文件：
 
@@ -1139,7 +1097,7 @@ python scripts/python/main.py gwas-overlap --config config/gwas_overlap_demo.yam
 
 目录：
 
-- `output/quant_assoc/`
+- `output/quant_assoc_plink2/`
 
 文件：
 

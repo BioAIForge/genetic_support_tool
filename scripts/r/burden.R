@@ -9,7 +9,7 @@ option_list <- list(
   make_option("--pheno-name", type = "character", dest = "pheno_name"),
   make_option("--pheno-type", type = "character", dest = "pheno_type"),
   make_option("--set-id", type = "character", dest = "set_id"),
-  make_option("--engine", type = "character", default = "base", dest = "engine"),
+  make_option("--engine", type = "character", default = "skat", dest = "engine"),
   make_option("--covariates", type = "character", default = "", dest = "covariates"),
   make_option("--result-out", type = "character", dest = "result_out"),
   make_option("--score-out", type = "character", dest = "score_out")
@@ -87,39 +87,12 @@ if (length(missing_covars) > 0) {
   stop(sprintf("Missing covariates in merged table: %s", paste(missing_covars, collapse = ", ")))
 }
 
-rhs_terms <- c("burden_score", covariate_fields)
-formula_text <- paste(opt[["pheno_name"]], "~", paste(rhs_terms, collapse = " + "))
-model_formula <- as.formula(formula_text)
-
-fit <- NULL
 model_name <- NULL
 beta_value <- NA
 se_value <- NA
 pvalue_value <- NA
 
-if (opt[["engine"]] == "base") {
-  if (opt[["pheno_type"]] == "continuous") {
-    fit <- lm(model_formula, data = merged)
-    model_name <- "linear_regression"
-  } else if (opt[["pheno_type"]] == "binary") {
-    fit <- glm(model_formula, data = merged, family = binomial())
-    model_name <- "logistic_regression"
-  } else {
-    stop("pheno-type must be 'continuous' or 'binary'")
-  }
-
-  fit_summary <- summary(fit)
-  coef_table <- fit_summary$coefficients
-
-  if (!"burden_score" %in% rownames(coef_table)) {
-    stop("burden_score coefficient not found in fitted model")
-  }
-
-  burden_row <- coef_table["burden_score", ]
-  beta_value <- unname(burden_row[1])
-  se_value <- unname(burden_row[2])
-  pvalue_value <- unname(burden_row[ncol(coef_table)])
-} else if (opt[["engine"]] == "skat") {
+if (opt[["engine"]] == "skat") {
   load_skat_if_needed()
 
   outcome_type <- ifelse(opt[["pheno_type"]] == "continuous", "C", "D")
@@ -152,7 +125,7 @@ if (opt[["engine"]] == "base") {
   )
   pvalue_value <- skat_res$p.value
 } else {
-  stop("Unsupported engine. Supported values: base, skat")
+  stop("Unsupported engine. Supported values: skat")
 }
 
 result_df <- data.frame(

@@ -95,7 +95,7 @@ def run_quant_assoc(config: dict[str, Any], project_root: Path) -> Path:
     plink2_bin = config.get("quant_assoc", {}).get("plink2_bin", "plink2")
     variance_standardize = bool(config.get("quant_assoc", {}).get("covar_variance_standardize", True))
     output_root = resolve_output_root(project_root, get_required(config, "output", "root_dir"))
-    output_dir = output_root / "quant_assoc"
+    output_dir = output_root / f"quant_assoc_{engine}"
 
     if engine != "plink2":
         raise ValueError("quant_assoc currently supports only engine=plink2")
