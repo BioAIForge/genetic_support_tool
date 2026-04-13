@@ -122,3 +122,34 @@ def validate_config(config: dict[str, Any], config_path: Path) -> None:
                     f"Unsupported gwas_gene_catalog.match_fields in {config_path}: {invalid_fields}. "
                     f"Supported values are {sorted(allowed_fields)}."
                 )
+
+        source_mode = gwas_gene_catalog_cfg.get("source_mode")
+        if source_mode is not None and source_mode not in {"tsv", "api"}:
+            raise ValueError(
+                f"Invalid gwas_gene_catalog.source_mode in {config_path}: {source_mode!r}. "
+                "Supported values are 'tsv' and 'api'."
+            )
+
+        api_base_url = gwas_gene_catalog_cfg.get("gwas_catalog_api_base_url")
+        if api_base_url is not None and not isinstance(api_base_url, str):
+            raise ValueError(
+                f"gwas_gene_catalog.gwas_catalog_api_base_url must be a string in {config_path}"
+            )
+
+        api_page_size = gwas_gene_catalog_cfg.get("api_page_size")
+        if api_page_size is not None and (not isinstance(api_page_size, int) or api_page_size <= 0):
+            raise ValueError(
+                f"gwas_gene_catalog.api_page_size must be a positive integer in {config_path}"
+            )
+
+        api_max_pages = gwas_gene_catalog_cfg.get("api_max_pages")
+        if api_max_pages is not None and (not isinstance(api_max_pages, int) or api_max_pages <= 0):
+            raise ValueError(
+                f"gwas_gene_catalog.api_max_pages must be a positive integer in {config_path}"
+            )
+
+        api_extended_geneset = gwas_gene_catalog_cfg.get("api_extended_geneset")
+        if api_extended_geneset is not None and not isinstance(api_extended_geneset, bool):
+            raise ValueError(
+                f"gwas_gene_catalog.api_extended_geneset must be a boolean in {config_path}"
+            )

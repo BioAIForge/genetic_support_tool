@@ -1,0 +1,17 @@
+project:
+  name: gwas_gene_catalog_api_demo
+
+analysis:
+  method: gwas_gene_catalog
+
+gwas_gene_catalog:
+  source_mode: api
+  project_result_file: data/gwas_gene_catalog/project_genes.tsv
+  gene_column: gene
+  gwas_catalog_api_base_url: https://www.ebi.ac.uk/gwas/rest/api/v2/associations
+  api_page_size: 50
+  api_max_pages: 2
+  api_extended_geneset: false
+
+output:
+  root_dir: output
