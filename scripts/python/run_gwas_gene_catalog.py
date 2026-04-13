@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import json
 import re
+import time
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -16,6 +17,49 @@ def _ensure_exists(path: Path, label: str) -> None:
         raise FileNotFoundError(f"{label} not found: {path}")
 
 
+# Retry configuration
+DEFAULT_MAX_RETRIES = 3
+DEFAULT_BACKOFF_FACTOR = 2.0  # seconds
+DEFAULT_INITIAL_DELAY = 1.0
+
+
+def _print_progress(current: int, total: int, gene: str = "") -> None:
+    """Print progress for API fetching."""
+    percentage = (current / total * 100) if total > 0 else 0
+    gene_info = f" - Gene: {gene}" if gene else ""
+    print(f"Progress: {current}/{total} ({percentage:.1f}%){gene_info}", flush=True)
+
+
+def _load_json_with_retry(
+    url: str,
+    max_retries: int = DEFAULT_MAX_RETRIES,
+    backoff_factor: float = DEFAULT_BACKOFF_FACTOR,
+    initial_delay: float = DEFAULT_INITIAL_DELAY,
+) -> dict[str, Any]:
+    """Load JSON with retry logic for handling network issues."""
+    delay = initial_delay
+    last_exception: Exception | None = None
+
+    for attempt in range(1, max_retries + 1):
+        try:
+            with urllib.request.urlopen(url, timeout=30) as response:
+                content = response.read().decode("utf-8")
+            data = json.loads(content)
+            if not isinstance(data, dict):
+                raise ValueError(f"Expected JSON object from {url}")
+            return data
+        except Exception as e:
+            last_exception = e
+            if attempt < max_retries:
+                print(f"  Retry {attempt}/{max_retries} after error: {e}", flush=True)
+                time.sleep(delay)
+                delay *= backoff_factor
+            else:
+                print(f"  Failed after {max_retries} attempts: {e}", flush=True)
+
+    raise last_exception or Exception(f"Failed to load {url} after {max_retries} retries")
+
+
 def _download_file(url: str, destination: Path) -> Path:
     destination.parent.mkdir(parents=True, exist_ok=True)
     with urllib.request.urlopen(url) as response, destination.open("wb") as handle:
@@ -24,12 +68,7 @@ def _download_file(url: str, destination: Path) -> Path:
 
 
 def _load_json(url: str) -> dict[str, Any]:
-    with urllib.request.urlopen(url) as response:
-        content = response.read().decode("utf-8")
-    data = json.loads(content)
-    if not isinstance(data, dict):
-        raise ValueError(f"Expected JSON object from {url}")
-    return data
+    return _load_json_with_retry(url)
 
 
 def _detect_delimiter(path: Path) -> str:
@@ -210,63 +249,88 @@ def _extract_variant_from_links(links: Any) -> list[str]:
 def _normalize_api_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     normalized_rows: list[dict[str, Any]] = []
     for row in rows:
+        # 直接从第一层提取字段
+        # genes
         mapped_gene_field = row.get("mappedGenes") or row.get("mappedGene") or row.get("mapped_genes")
         reported_gene_field = (
             row.get("reportedGenes")
             or row.get("reportedGene")
             or row.get("reported_genes")
         )
-        trait_field = (
-            row.get("efo_traits")
-            or row.get("efoTraits")
-            or row.get("diseaseTrait")
-            or row.get("trait")
-            or row.get("efoTrait")
-        )
-        reported_trait_field = row.get("reported_trait") or row.get("reportedTrait") or row.get("diseaseTrait")
-        study_field = (
-            row.get("accession_id")
-            or row.get("studyAccession")
-            or row.get("study")
-            or row.get("study accession")
-        )
-        author_field = row.get("first_author") or row.get("firstAuthor") or row.get("author")
-        pubmed_field = row.get("pubmed_id") or row.get("pubmedId")
 
-        study_values = _extract_strings(study_field)
-        study_accession = study_values[0] if study_values else ""
+        # traits - efo_traits 是列表，每个元素有 efo_id 和 efo_trait
+        efo_traits = row.get("efo_traits", [])
+        trait_list = []
+        if isinstance(efo_traits, list):
+            for t in efo_traits:
+                if isinstance(t, dict):
+                    trait_list.append(t.get("efo_trait", ""))
+        reported_trait_list = row.get("reported_trait", [])
+        if isinstance(reported_trait_list, list):
+            reported_trait_strs = [str(t) for t in reported_trait_list]
+        else:
+            reported_trait_strs = _extract_strings(reported_trait_list)
 
-        first_author_values = _extract_strings(author_field)
-        first_author = first_author_values[0] if first_author_values else ""
-        pubmed_values = _extract_strings(pubmed_field)
-        pubmed_id = pubmed_values[0] if pubmed_values else ""
+        # variant - 多种提取方式
+        variant_list: list[str] = []
+        # 方式1: snp_allele
+        snp_alleles = row.get("snp_allele", [])
+        if isinstance(snp_alleles, list):
+            for sa in snp_alleles:
+                if isinstance(sa, dict):
+                    rs_id = sa.get("rs_id", "")
+                    if rs_id:
+                        variant_list.append(rs_id)
+        # 方式2: snp_effect_allele
+        if not variant_list:
+            snp_effect_allele = row.get("snp_effect_allele", [])
+            variant_list = _extract_strings(snp_effect_allele)
+        # 方式3: variantId/rsId/snps
+        if not variant_list:
+            variant_list = _extract_strings(row.get("variantId") or row.get("rsId") or row.get("snps"))
+        # 方式4: _links.snp
+        if not variant_list:
+            variant_list = _extract_variant_from_links(row.get("_links"))
 
-        pvalue = row.get("p_value")
-        if pvalue is None:
-            pvalue = row.get("pvalue")
-        if pvalue is None:
-            pvalue = row.get("pValue")
-        pvalue_value = _parse_pvalue(str(pvalue)) if pvalue is not None else None
+        # study
+        study_accession = str(row.get("accession_id", ""))
+        pubmed_id = str(row.get("pubmed_id", ""))
+        first_author = str(row.get("first_author", ""))
 
-        variant_values = _extract_rsids(row.get("snp_allele"))
-        if not variant_values:
-            variant_values = _extract_strings(row.get("snp_effect_allele"))
-        if not variant_values:
-            variant_values = _extract_strings(row.get("variantId") or row.get("rsId") or row.get("snps"))
-        if not variant_values:
-            variant_values = _extract_variant_from_links(row.get("_links"))
+        # pvalue
+        p_value = row.get("p_value") or row.get("pvalue") or row.get("pValue")
+        pvalue_value = _parse_pvalue(str(p_value)) if p_value is not None else None
+
+        # 其他统计信息
+        or_value = row.get("or_value") or row.get("or_per_copy_num")
+        beta = row.get("beta", "")
+        risk_frequency = row.get("risk_frequency", "")
+        ci_lower = row.get("ci_lower")
+        ci_upper = row.get("ci_upper")
+        location = row.get("locations", [])
+        location_str = "; ".join(str(loc) for loc in location) if location else ""
+        snp_effect_allele = row.get("snp_effect_allele", [])
+        effect_allele_str = "; ".join(str(ea) for ea in snp_effect_allele) if snp_effect_allele else ""
 
         normalized_rows.append(
             {
                 "mapped_genes": _extract_api_gene_list(mapped_gene_field),
                 "reported_genes": _extract_api_gene_list(reported_gene_field),
-                "trait": "; ".join(dict.fromkeys(_extract_strings(trait_field))),
-                "reported_trait": "; ".join(dict.fromkeys(_extract_strings(reported_trait_field))),
-                "variant": "; ".join(dict.fromkeys(variant_values)),
+                "trait": "; ".join(dict.fromkeys(trait_list)),
+                "reported_trait": "; ".join(dict.fromkeys(reported_trait_strs)),
+                "variant": "; ".join(dict.fromkeys(variant_list)),
                 "pvalue": pvalue_value,
                 "study_accession": study_accession,
                 "first_author": first_author,
                 "pubmed_id": pubmed_id,
+                # 新增字段
+                "or_value": str(or_value) if or_value not in (None, "", "-") else "",
+                "beta": str(beta) if beta not in (None, "", "-") else "",
+                "risk_frequency": str(risk_frequency) if risk_frequency not in (None, "", "NR") else "",
+                "ci_lower": str(ci_lower) if ci_lower is not None else "",
+                "ci_upper": str(ci_upper) if ci_upper is not None else "",
+                "location": location_str,
+                "effect_allele": effect_allele_str,
             }
         )
     return normalized_rows
@@ -414,7 +478,8 @@ def _fetch_api_matches_for_gene(
         next_url = _get_next_link(payload)
         page_count += 1
 
-    return _normalize_api_rows(api_rows)
+    normalized = _normalize_api_rows(api_rows)
+    return normalized
 
 
 def run_gwas_gene_catalog(config: dict[str, Any], project_root: Path) -> Path:
@@ -458,9 +523,18 @@ def run_gwas_gene_catalog(config: dict[str, Any], project_root: Path) -> Path:
     enriched_rows: list[dict[str, Any]] = []
     detail_rows: list[dict[str, Any]] = []
 
+    total_genes = len(project_rows)
+    if source_kind == "api":
+        print(f"Starting GWAS Catalog API queries for {total_genes} genes...", flush=True)
+
     for row_index, row in enumerate(project_rows, start=1):
         gene_value = str(row.get(gene_column, "")).strip()
         normalized_gene = _normalize_gene_token(gene_value)
+
+        # Show progress for API mode
+        if source_kind == "api":
+            _print_progress(row_index, total_genes, gene_value)
+
         matches = gene_index.get(normalized_gene, []) if source_kind != "api" else _fetch_api_matches_for_gene(
             gene_value,
             api_base_url=api_base_url,
@@ -483,6 +557,17 @@ def run_gwas_gene_catalog(config: dict[str, Any], project_root: Path) -> Path:
         enriched_rows.append(enriched_row)
 
         for match in matches:
+            # 构建置信区间字符串
+            ci_lower = match.get("ci_lower", "")
+            ci_upper = match.get("ci_upper", "")
+            ci_str = ""
+            if ci_lower and ci_upper:
+                ci_str = f"{ci_lower}-{ci_upper}"
+            elif ci_lower:
+                ci_str = f">{ci_lower}"
+            elif ci_upper:
+                ci_str = f"<{ci_upper}"
+
             detail_rows.append(
                 {
                     "project_row_index": str(row_index),
@@ -493,6 +578,12 @@ def run_gwas_gene_catalog(config: dict[str, Any], project_root: Path) -> Path:
                     "gwas_catalog_reported_genes": _unique_join(match.get("reported_genes", [])),
                     "gwas_catalog_variant": match["variant"],
                     "gwas_catalog_pvalue": _format_pvalue(match["pvalue"]),
+                    "gwas_catalog_or_value": match.get("or_value", ""),
+                    "gwas_catalog_beta": match.get("beta", ""),
+                    "gwas_catalog_risk_frequency": match.get("risk_frequency", ""),
+                    "gwas_catalog_ci": ci_str,
+                    "gwas_catalog_location": match.get("location", ""),
+                    "gwas_catalog_effect_allele": match.get("effect_allele", ""),
                     "gwas_catalog_study_accession": match["study_accession"],
                     "gwas_catalog_first_author": match["first_author"],
                     "gwas_catalog_pubmed_id": match["pubmed_id"],
@@ -519,6 +610,12 @@ def run_gwas_gene_catalog(config: dict[str, Any], project_root: Path) -> Path:
         "gwas_catalog_reported_genes",
         "gwas_catalog_variant",
         "gwas_catalog_pvalue",
+        "gwas_catalog_or_value",
+        "gwas_catalog_beta",
+        "gwas_catalog_risk_frequency",
+        "gwas_catalog_ci",
+        "gwas_catalog_location",
+        "gwas_catalog_effect_allele",
         "gwas_catalog_study_accession",
         "gwas_catalog_first_author",
         "gwas_catalog_pubmed_id",
@@ -549,6 +646,9 @@ def run_gwas_gene_catalog(config: dict[str, Any], project_root: Path) -> Path:
         metadata["api_page_size"] = api_page_size
         metadata["api_extended_geneset"] = api_extended_geneset
         metadata["api_max_pages"] = api_max_pages
+        metadata["api_retry_max_retries"] = DEFAULT_MAX_RETRIES
+        metadata["api_retry_backoff_factor"] = DEFAULT_BACKOFF_FACTOR
+        metadata["api_retry_initial_delay"] = DEFAULT_INITIAL_DELAY
 
     metadata_path.write_text(json.dumps(metadata, indent=2, ensure_ascii=False), encoding="utf-8")
     return summary_path
