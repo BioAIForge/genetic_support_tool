@@ -5,3 +5,4 @@ __pycache__/
 .pytest_cache/
 output/
 data/regenie/*.log
+任务对照清单.md
