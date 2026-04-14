@@ -3,7 +3,7 @@ FROM rocker/r2u:24.04
 ARG PLINK2_ZIP_URL=https://s3.amazonaws.com/plink2-assets/plink2_linux_x86_64_latest.zip
 ARG HAPLO_STATS_URL=https://cran.r-project.org/src/contrib/Archive/haplo.stats/haplo.stats_1.9.8.3.tar.gz
 ARG REGENIE_VERSION=4.1
-ARG REGENIE_ZIP_URL=https://github.com/rgcgithub/regenie/releases/download/v${REGENIE_VERSION}/regenie_v${REGENIE_VERSION}.gz_x86_64_Centos7_mkl.zip
+ARG REGENIE_ZIP_URL=https://github.com/rgcgithub/regenie/releases/download/v${REGENIE_VERSION}/regenie_v${REGENIE_VERSION}.gz_x86_64_Linux_mkl.zip
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=Asia/Shanghai
@@ -47,22 +47,46 @@ RUN python3 -m pip install --break-system-packages --no-cache-dir -r /app/requir
 RUN if [ -f /tmp/docker-assets/regenie.zip ]; then \
       cp /tmp/docker-assets/regenie.zip /tmp/pkgsrc/regenie_asset; \
     else \
-      curl -L --retry 5 --retry-all-errors --connect-timeout 30 --max-time 1800 -o /tmp/pkgsrc/regenie_asset ${REGENIE_ZIP_URL}; \
+      curl -fL --retry 5 --retry-all-errors --connect-timeout 30 --max-time 1800 -o /tmp/pkgsrc/regenie_asset ${REGENIE_ZIP_URL}; \
     fi && \
-    rm -rf /tmp/pkgsrc/regenie_extract && mkdir -p /tmp/pkgsrc/regenie_extract && \
-    if unzip -q /tmp/pkgsrc/regenie_asset -d /tmp/pkgsrc/regenie_extract 2>/dev/null; then \
-      regenie_candidate=$(find /tmp/pkgsrc/regenie_extract -type f \( -name 'regenie' -o -name 'regenie_*' -o -name 'regenie_v*' \) ! -name '*.txt' ! -name '*.md' | head -n 1); \
-      if [ -z "$regenie_candidate" ]; then \
-        echo "Failed to locate regenie binary inside downloaded archive" >&2; \
-        find /tmp/pkgsrc/regenie_extract -maxdepth 3 -type f >&2; \
-        exit 1; \
-      fi; \
-      cp "$regenie_candidate" /opt/tools/regenie/regenie; \
-    elif gzip -t /tmp/pkgsrc/regenie_asset 2>/dev/null; then \
-      gunzip -c /tmp/pkgsrc/regenie_asset > /opt/tools/regenie/regenie; \
-    else \
-      cp /tmp/pkgsrc/regenie_asset /opt/tools/regenie/regenie; \
-    fi && \
+    python3 - <<'PY' && \
+from pathlib import Path
+import shutil
+import sys
+import zipfile
+
+asset = Path('/tmp/pkgsrc/regenie_asset')
+target = Path('/opt/tools/regenie/regenie')
+extract_dir = Path('/tmp/pkgsrc/regenie_extract')
+shutil.rmtree(extract_dir, ignore_errors=True)
+extract_dir.mkdir(parents=True, exist_ok=True)
+
+if not zipfile.is_zipfile(asset):
+    print(f'Unsupported regenie asset format (expected zip): {asset}', file=sys.stderr)
+    sys.exit(1)
+
+with zipfile.ZipFile(asset) as zf:
+    zf.extractall(extract_dir)
+
+candidates = []
+for path in extract_dir.rglob('*'):
+    if not path.is_file():
+        continue
+    name = path.name.lower()
+    if name.endswith(('.txt', '.md')):
+        continue
+    if name == 'regenie' or name.startswith('regenie_') or name.startswith('regenie_v'):
+        candidates.append(path)
+
+if not candidates:
+    print('Failed to locate regenie binary inside downloaded archive', file=sys.stderr)
+    for path in sorted(extract_dir.rglob('*')):
+        if path.is_file():
+            print(path, file=sys.stderr)
+    sys.exit(1)
+
+shutil.copy2(candidates[0], target)
+PY
     chmod +x /opt/tools/regenie/regenie && \
     /opt/tools/regenie/regenie --help >/dev/null || \
     (echo "regenie binary failed to execute" >&2; ls -l /opt/tools/regenie >&2; ldd /opt/tools/regenie/regenie >&2 || true; exit 1)
