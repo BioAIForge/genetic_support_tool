@@ -19,7 +19,7 @@ phenotype:
 burden:
   set_id: DEMO_GENE
   engine: regenie
-  regenie_bin: /home/zj/miniconda3/envs/regenie-env/bin/regenie
+  regenie_bin: ${REGENIE_BIN}
   regenie_aaf_bins: "1.0"
   regenie_build_mask: max
   regenie_ignore_pred: true
@@ -33,7 +33,7 @@ burden:
 skato:
   set_id: DEMO_GENE
   engine: regenie
-  regenie_bin: /home/zj/miniconda3/envs/regenie-env/bin/regenie
+  regenie_bin: ${REGENIE_BIN}
   regenie_aaf_bins: "1.0"
   regenie_build_mask: max
   regenie_ignore_pred: true
