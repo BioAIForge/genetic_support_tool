@@ -2,6 +2,7 @@ FROM rocker/r2u:24.04
 
 ARG PLINK2_ZIP_URL=https://s3.amazonaws.com/plink2-assets/plink2_linux_x86_64_latest.zip
 ARG HAPLO_STATS_URL=https://cran.r-project.org/src/contrib/Archive/haplo.stats/haplo.stats_1.9.8.3.tar.gz
+ARG REGENIE_VERSION=4.1.2
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=Asia/Shanghai
@@ -9,6 +10,8 @@ ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
 ENV R_LIBS_USER=/opt/R/library
 ENV GENETIC_TOOL_OUTPUT_ROOT=/work/output
+ENV MINICONDA=/opt/miniconda
+ENV PATH="/opt/miniconda/bin:${PATH}"
 
 WORKDIR /app
 
@@ -30,6 +33,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl-dev \
     zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Miniconda
+RUN curl -L -o /tmp/miniconda.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
+    bash /tmp/miniconda.sh -b -p /opt/miniconda && \
+    rm /tmp/miniconda.sh
+
+# Create regenie environment with conda
+RUN conda create -n regenie -c bioconda -c conda-forge regenie=${REGENIE_VERSION} -y && \
+    conda clean -afy
+
+# Set regenie bin path
+ENV REGENIE_BIN=/opt/miniconda/envs/regenie/bin/regenie
 
 RUN mkdir -p /opt/R/library /opt/tools/plink2 /tmp/pkgsrc
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -7,6 +9,26 @@ try:
     import yaml
 except ModuleNotFoundError:  # pragma: no cover - depends on local environment
     yaml = None
+
+
+def _expand_env_vars(value: Any) -> Any:
+    """递归展开字符串中的环境变量，如 ${VAR} 或 $VAR"""
+    if isinstance(value, str):
+        # 匹配 ${VAR} 或 $VAR 格式
+        def replace_env_var(match):
+            var_expr = match.group(0)
+            # 提取变量名
+            if var_expr.startswith("${"):
+                var_name = var_expr[2:-1]
+            else:
+                var_name = var_expr[1:]
+            return os.environ.get(var_name, var_expr)
+        return re.sub(r'\$\{[^}]+\}|\$[a-zA-Z_][a-zA-Z0-9_]*', replace_env_var, value)
+    elif isinstance(value, dict):
+        return {k: _expand_env_vars(v) for k, v in value.items()}
+    elif isinstance(value, list):
+        return [_expand_env_vars(item) for item in value]
+    return value
 
 
 def load_config(config_path: str | Path) -> dict[str, Any]:
@@ -25,6 +47,10 @@ def load_config(config_path: str | Path) -> dict[str, Any]:
 
     if not isinstance(data, dict):
         raise ValueError("Config root must be a mapping.")
+
+    # 展开环境变量
+    data = _expand_env_vars(data)
+
     validate_config(data, path)
     return data
 
