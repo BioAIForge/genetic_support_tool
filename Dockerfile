@@ -39,8 +39,21 @@ RUN curl -L -o /tmp/miniconda.sh https://repo.anaconda.com/miniconda/Miniconda3-
     bash /tmp/miniconda.sh -b -p /opt/miniconda && \
     rm /tmp/miniconda.sh
 
-# Create regenie environment with conda
-RUN conda create -n regenie -c bioconda -c conda-forge regenie=${REGENIE_VERSION} -y && \
+# Configure conda channels following current Bioconda recommendations and
+# avoid solving against the defaults channel during image builds.
+RUN conda config --system --remove-key channels || true && \
+    conda config --system --add channels bioconda && \
+    conda config --system --add channels conda-forge && \
+    conda config --system --set channel_priority strict
+
+# Create regenie environment with explicit channels so Docker builds do not
+# depend on any inherited/default channel configuration.
+RUN conda create -n regenie \
+      --override-channels \
+      --channel conda-forge \
+      --channel bioconda \
+      --strict-channel-priority \
+      regenie=${REGENIE_VERSION} -y && \
     conda clean -afy
 
 # Set regenie bin path
