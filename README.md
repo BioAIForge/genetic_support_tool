@@ -15,10 +15,8 @@
 
 - `burden`：Burden 集合检验
 - `skato`：SKAT-O 集合检验
-- `haplotype`：局部 Haplotype 分析
 - `quant_assoc`：连续表型关联分析
 - `gwas_gene_catalog`：基因级 GWAS Catalog 证据回填
-- `gwas_overlap`：与传统 GWAS hits 的重叠和补充关系分析
 
 后续可继续扩展的方法包括：
 
@@ -55,7 +53,7 @@
 - R 包
 - Python 脚本
 - Java 工具
-- 命令行程序，如 `PLINK2`、`bedtools`
+- 命令行程序，如 `PLINK2`、`regenie`
 
 ---
 
@@ -67,17 +65,14 @@ genetic_support_tool/
     default.yaml
     gwas_gene_catalog_api_demo.yaml
     gwas_gene_catalog_demo.yaml
-    gwas_overlap_demo.yaml
     regenie_example.yaml
     quant_assoc_plink2_example.yaml
-    strong_signal_haplotype.yaml
     strong_signal_skat.yaml
     strong_signal_skato.yaml
   data/
     example/
     example_strong_signal/
     gwas_gene_catalog/
-    gwas_overlap/
   output/
   scripts/
     python/
@@ -85,14 +80,11 @@ genetic_support_tool/
       main.py
       run_burden.py
       run_gwas_gene_catalog.py
-      run_gwas_overlap.py
-      run_haplotype.py
       run_regenie.py
       run_quant_assoc.py
       run_skato.py
     r/
       burden.R
-      haplotype.R
       quant_assoc.R
       skato.R
   requirements.txt
@@ -105,7 +97,7 @@ genetic_support_tool/
 
 1. 先完成最小环境安装
 2. 先跑不依赖外部命令行工具的模块，确认 Python + R 链路可用
-3. 再按需安装 `plink2`、`bedtools`、`regenie`，测试扩展模块
+3. 再按需安装 `plink2`、`regenie`，测试扩展模块
 
 推荐的阅读顺序是：
 
@@ -151,28 +143,25 @@ python scripts/python/main.py burden --config config/default.yaml
 
 1. `burden --config config/default.yaml`
 2. `skato --config config/default.yaml`
-3. `haplotype --config config/strong_signal_haplotype.yaml`
-4. `gwas-gene-catalog --config config/gwas_gene_catalog_demo.yaml`
-5. `gwas-gene-catalog --config config/gwas_gene_catalog_api_demo.yaml`
-6. `gwas-overlap --config config/gwas_overlap_demo.yaml`
-7. `quant-assoc --config config/quant_assoc_plink2_example.yaml`
-8. `burden` / `skato` 的 `engine=regenie` 配置
+3. `gwas-gene-catalog --config config/gwas_gene_catalog_demo.yaml`
+4. `gwas-gene-catalog --config config/gwas_gene_catalog_api_demo.yaml`
+5. `quant-assoc --config config/quant_assoc_plink2_example.yaml`
+6. `burden` / `skato` 的 `engine=regenie` 配置
 
 说明：
 
 - 第 1 步主要验证 Python + R + TSV 基础链路
-- 第 2、3 步会进一步验证 `SKAT`、`haplo.stats` 等 R 包依赖
-- 第 4 步会验证基于基因 symbol 的 GWAS Catalog 摘要/明细回填流程
-- 第 5 步会验证真实 GWAS Catalog API 可访问性
-- 第 6 步会验证 `bedtools`
-- 第 7 步会验证 `plink2`
-- 第 8 步最后验证 `regenie`
+- 第 2 步会进一步验证 `SKAT` 相关依赖
+- 第 3 步会验证基于基因 symbol 的 GWAS Catalog 摘要/明细回填流程
+- 第 4 步会验证真实 GWAS Catalog API 可访问性
+- 第 5 步会验证 `plink2`
+- 第 6 步最后验证 `regenie`
 
 ### 3.1.3 各模块开始前要注意什么
 
-#### Burden / SKAT-O / Haplotype
+#### Burden / SKAT-O
 
-这三个模块最适合先在服务器上跑通，因为它们直接使用仓库中的 TSV 示例数据。
+这两个模块最适合先在服务器上跑通，因为它们直接使用仓库中的 TSV 示例数据。
 
 常见前置条件：
 
@@ -217,10 +206,8 @@ python scripts/python/main.py skato --config config/regenie_example.yaml
 |---|---|---|---|---|---|
 | `burden` | Burden 集合检验 | `python scripts/python/main.py burden --config ...` | `SKAT`、`regenie` | 已实现 | `output/burden_<engine>/` |
 | `skato` | SKAT-O 集合检验 | `python scripts/python/main.py skato --config ...` | `SKAT`、`regenie` | 已实现 | `output/skato_<engine>/` |
-| `haplotype` | 局部 Haplotype 分析 | `python scripts/python/main.py haplotype --config ...` | `haplo.stats` | 已实现 | `output/haplotype/` |
 | `quant-assoc` | 连续表型关联分析 | `python scripts/python/main.py quant-assoc --config ...` | `PLINK2` | 已实现 | `output/quant_assoc_<engine>/` |
 | `gwas-gene-catalog` | 基因级 GWAS Catalog 证据回填 | `python scripts/python/main.py gwas-gene-catalog --config ...` | GWAS Catalog TSV / 官方 REST API | 已实现 | `output/gwas_gene_catalog/` |
-| `gwas-overlap` | GWAS hits 重叠分析 | `python scripts/python/main.py gwas-overlap --config ...` | `bedtools` | 已实现 | `output/gwas_overlap/` |
 
 ### 4.1 Burden 模块
 
@@ -350,48 +337,7 @@ python scripts/python/main.py skato --config config/regenie_example.yaml
 - 当前版本不输出统一的 `beta` 和 `SE`
 - `engine=regenie` 时不再额外封装统一结果表，保留 regenie 原始输出
 
-### 4.3 局部 Haplotype 模块
-
-方法名称：
-
-- `haplotype`
-
-用途：
-
-- 在局部区域内根据多个位点组合构建 haplotype
-- 评估主要 haplotype 与目标表型之间的关联
-
-实现方式：
-
-- 调用 `haplo.stats` R 包
-- 将当前 0/1/2 剂量矩阵自动转换为双等位基因输入
-- 使用 `haplo.em` 估计 haplotype 频率
-- 使用 `haplo.score` 输出 haplotype 全局关联检验结果
-
-输入文件：
-
-- `geno_matrix.tsv`
-- `pheno.tsv`
-- `covar.tsv`，可选
-
-输出文件：
-
-- `output/haplotype/haplotype_result.tsv`
-- `output/haplotype/haplotype_frequency.tsv`
-- `output/haplotype/run_metadata.json`
-
-结果解读重点：
-
-- `top_haplotype`
-- `top_haplotype_frequency`
-- `haplotype_pvalue`
-
-说明：
-
-- 当前输出的 `haplotype_pvalue` 为基于 `haplo.stats` 的全局 haplotype 关联检验 P 值
-- `haplotype_effect` 在当前版本中不再作为主要解释字段，可能为 `NA`
-
-### 4.4 连续表型关联分析模块
+### 4.3 连续表型关联分析模块
 
 方法名称：
 
@@ -433,43 +379,7 @@ python scripts/python/main.py skato --config config/regenie_example.yaml
 - 运行环境中必须提前安装 `plink2`
 - 默认启用 `--covar-variance-standardize`，以避免协变量量纲差异导致的数值不稳定
 
-### 4.5 GWAS Overlap 模块
-
-方法名称：
-
-- `gwas-overlap`
-
-用途：
-
-- 将本项目结果与参考 GWAS hits 进行坐标级比较
-- 判断结果属于已知信号、邻近已知信号还是新增信号
-
-实现方式：
-
-- 读取项目结果文件
-- 支持本地 GWAS 参考 TSV，或远程下载的 GWAS Catalog 参考文件
-- 将项目结果和参考结果转换为 BED
-- 调用 `bedtools intersect -wao`
-- 根据窗口大小和交集结果分类为 `known_exact / near_known / novel`
-
-输入文件：
-
-- `project_hits.tsv`
-- `gwas_reference.tsv`，或远程 GWAS Catalog 下载文件
-- `config.yaml`
-
-输出文件：
-
-- `output/gwas_overlap/gwas_overlap_result.tsv`
-- `output/gwas_overlap/run_metadata.json`
-
-结果解读重点：
-
-- `nearest_gwas_hit`
-- `distance_bp`
-- `category`
-
-### 4.6 GWAS Catalog 基因注释模块
+### 4.4 GWAS Catalog 基因注释模块
 
 方法名称：
 
@@ -758,11 +668,10 @@ pip install -r requirements.txt
 
 说明：
 
-- 当前工具中的 `SKAT`、`haplo.stats` 等 R 包在较旧版本 R 环境下可能存在不可安装或兼容性不足的问题
-- 如果需要稳定运行 `burden(engine=skat)`、`skato`、`haplotype` 等模块，建议在较新的 R 版本中部署
-- 由于 `haplo.stats` 已从 CRAN 主仓库移除，需通过 archive 包方式安装
+- 当前工具中的 `SKAT` 等 R 包在较旧版本 R 环境下可能存在不可安装或兼容性不足的问题
+- 如果需要稳定运行 `burden(engine=skat)`、`skato` 等模块，建议在较新的 R 版本中部署
 
-Burden / SKAT-O / Haplotype 的基础 R 包：
+Burden / SKAT-O 的基础 R 包：
 
 - `optparse`
 - `jsonlite`
@@ -850,43 +759,6 @@ Rscript -e 'dir.create(Sys.getenv("R_LIBS_USER"), recursive=TRUE, showWarnings=F
 regenie --help
 ```
 
-#### Haplotype
-
-适用方法：
-
-- `haplotype`
-
-需要：
-
-- `optparse`
-- `haplo.stats`
-- `arsenal`
-- `rms`
-
-安装命令：
-
-```bash
-mkdir -p ~/R/library
-export R_LIBS_USER=~/R/library
-Rscript -e 'options(timeout=300); dir.create(Sys.getenv("R_LIBS_USER"), recursive=TRUE, showWarnings=FALSE); .libPaths(c(Sys.getenv("R_LIBS_USER"), .libPaths())); install.packages(c("optparse","arsenal","rms"), repos="https://cloud.r-project.org")'
-mkdir -p ~/R/pkgsrc
-wget -c --timeout=120 --tries=5 -O ~/R/pkgsrc/haplo.stats_1.9.8.3.tar.gz https://cran.r-project.org/src/contrib/Archive/haplo.stats/haplo.stats_1.9.8.3.tar.gz
-R CMD INSTALL -l ~/R/library ~/R/pkgsrc/haplo.stats_1.9.8.3.tar.gz
-```
-
-如服务器无法使用 `wget`，可改用：
-
-```bash
-curl -L --retry 5 --connect-timeout 30 --max-time 300 -o ~/R/pkgsrc/haplo.stats_1.9.8.3.tar.gz https://cran.r-project.org/src/contrib/Archive/haplo.stats/haplo.stats_1.9.8.3.tar.gz
-R CMD INSTALL -l ~/R/library ~/R/pkgsrc/haplo.stats_1.9.8.3.tar.gz
-```
-
-安装完成后可用以下命令验证：
-
-```bash
-Rscript -e 'library(haplo.stats); cat("haplo.stats loaded successfully\n")'
-```
-
 #### Quantitative Association
 
 适用方法：
@@ -945,70 +817,6 @@ plink2 --version
   - https://www.cog-genomics.org/plink/2.0/data
   - https://www.cog-genomics.org/plink/2.0/assoc
 
-#### GWAS Overlap
-
-适用方法：
-
-- `gwas-overlap`
-
-需要：
-
-- `bedtools`
-
-版本要求：
-
-- 推荐版本：`bedtools 2.31.x`
-- 最低建议版本：`bedtools >= 2.30`
-
-安装命令：
-
-```bash
-bedtools --version
-```
-
-说明：
-
-- `gwas-overlap` 当前不依赖 R 包
-- 需要在执行环境中预先安装 `bedtools`
-- 如果 `bedtools` 不在 PATH 中，可在配置文件中通过 `gwas_overlap.bedtools_bin` 指定可执行文件路径
-- 当前实现核心依赖命令为 `bedtools intersect`
-
-`bedtools` 服务器安装建议：
-
-Ubuntu / Debian：
-
-```bash
-sudo apt-get update
-sudo apt-get install -y bedtools
-bedtools --version
-```
-
-如果系统仓库版本过旧，建议手动安装新版本。示例：
-
-```bash
-mkdir -p ~/tools/bedtools
-cd ~/tools/bedtools
-wget https://github.com/arq5x/bedtools2/releases/download/v2.31.1/bedtools.static
-mv bedtools.static bedtools
-chmod +x bedtools
-~/tools/bedtools/bedtools --version
-```
-
-如需加入 PATH：
-
-```bash
-echo 'export PATH="$HOME/tools/bedtools:$PATH"' >> ~/.bashrc
-source ~/.bashrc
-bedtools --version
-```
-
-如果不加入 PATH，可在配置文件中指定：
-
-```yaml
-gwas_overlap:
-  bedtools_bin: /home/zj/tools/bedtools/bedtools
-```
-
 ---
 
 ## 8. 服务器环境安装
@@ -1035,8 +843,6 @@ Rscript -e 'dir.create(Sys.getenv("R_LIBS_USER"), recursive=TRUE, showWarnings=F
 由于默认 Burden 引擎已经切换为 `SKAT`，建议在基础环境安装阶段直接完成 `SKAT` 安装。
 
 如果还需要运行 `quant-assoc`，还需要安装 `plink2` 并确保命令可用。
-
-如果需要运行 `gwas-overlap`，还需要安装 `bedtools` 并确保命令可用。
 
 如果需要运行 `gwas-gene-catalog`，默认不依赖额外命令行工具；如需远程下载 GWAS Catalog TSV 或直接调用官方 REST API，只需保证服务器能够访问对应 URL。
 
@@ -1101,25 +907,13 @@ plink2 --pedmap data/regenie/example_dataset --make-pgen --out data/regenie/exam
 python scripts/python/main.py skato --config config/regenie_example.yaml
 ```
 
-### 9.5 局部 Haplotype 示例
-
-```bash
-python scripts/python/main.py haplotype --config config/strong_signal_haplotype.yaml
-```
-
-### 9.6 连续表型关联分析示例
+### 9.5 连续表型关联分析示例
 
 ```bash
 python scripts/python/main.py quant-assoc --config config/quant_assoc_plink2_example.yaml
 ```
 
-### 9.7 GWAS Overlap 示例
-
-```bash
-python scripts/python/main.py gwas-overlap --config config/gwas_overlap_demo.yaml
-```
-
-### 9.8 GWAS Catalog 基因注释示例
+### 9.6 GWAS Catalog 基因注释示例
 
 ```bash
 python scripts/python/main.py gwas-gene-catalog --config config/gwas_gene_catalog_demo.yaml
@@ -1237,37 +1031,7 @@ python scripts/python/main.py gwas-gene-catalog --config config/gwas_gene_catalo
 - `engine=regenie` 时，直接查看原始 `.regenie` 文件中的 `P` / `LOG10P`、`TEST`、`ID`、`N`、`NBURDEN` 等字段
 - `engine=regenie` 时，`run_metadata.json` 中的 `result_file` 会指向原始 `.regenie` 文件
 
-### 10.3 Haplotype 输出
-
-目录：
-
-- `output/haplotype/`
-
-文件：
-
-- `haplotype_result.tsv`
-- `haplotype_frequency.tsv`
-- `run_metadata.json`
-
-`haplotype_result.tsv` 主要字段：
-
-- `set_id`
-- `top_haplotype`
-- `top_haplotype_frequency`
-- `n_samples`
-- `n_variants`
-- `haplotype_effect`
-- `haplotype_pvalue`
-- `haplotype_model`
-
-解读：
-
-- `top_haplotype` 表示频率最高的 haplotype
-- `top_haplotype_frequency` 表示该 haplotype 的估计频率
-- `haplotype_pvalue` 表示全局 haplotype 关联检验的显著性
-- 当前 `haplotype_effect` 可能为 `NA`，因为现阶段重点输出全局检验结果
-
-### 10.4 连续表型关联分析输出
+### 10.3 连续表型关联分析输出
 
 目录：
 
@@ -1290,34 +1054,7 @@ python scripts/python/main.py gwas-gene-catalog --config config/gwas_gene_catalo
 - `se`
 - `p_value`
 
-### 10.5 GWAS Overlap 输出
-
-目录：
-
-- `output/gwas_overlap/`
-
-文件：
-
-- `gwas_overlap_result.tsv`
-- `run_metadata.json`
-
-`gwas_overlap_result.tsv` 主要字段：
-
-- `project_id`
-- `chr`
-- `pos`
-- `nearest_gwas_hit`
-- `nearest_gwas_trait`
-- `distance_bp`
-- `category`
-
-`category` 的常见取值：
-
-- `known_exact`
-- `near_known`
-- `novel`
-
-### 10.6 GWAS Catalog 基因注释输出
+### 10.4 GWAS Catalog 基因注释输出
 
 目录：
 
@@ -1400,10 +1137,9 @@ python scripts/python/main.py gwas-gene-catalog --config config/gwas_gene_catalo
 1. 先安装 Python 依赖
 2. 再安装所选方法需要的 R 包
 3. 根据方法准备输入文件
-   - `burden / skato / haplotype`：准备 `geno_matrix.tsv`、`pheno.tsv`、`covar.tsv`
+   - `burden / skato`：准备 `geno_matrix.tsv`、`pheno.tsv`、`covar.tsv`
    - `quant-assoc`：准备 `PLINK2` 原生输入文件和 `pheno.tsv`、`covar.tsv`
    - `gwas-gene-catalog`：准备基因级结果表和 GWAS Catalog 参考 TSV
-   - `gwas-overlap`：准备项目结果表和 GWAS 参考结果表
 4. 编辑配置文件
 5. 执行对应命令
 6. 查看 `output/` 下结果文件
@@ -1424,14 +1160,12 @@ python scripts/python/main.py gwas-gene-catalog --config config/gwas_gene_catalo
 - 标准化输入输出
 - Burden 方法
 - SKAT-O 方法
-- 局部 Haplotype 方法
 - 连续表型关联分析方法
 - GWAS Catalog 基因注释方法
-- GWAS Overlap 方法
 - 示例数据
 - 服务器部署说明
 
-后续可在当前框架上继续扩展更多遗传学支撑分析模块，并在现有 6 个模块基础上增强输入适配、批量分析、显著结果汇总和可视化输出能力。
+后续可在当前框架上继续扩展更多遗传学支撑分析模块，并在现有 4 个模块基础上增强输入适配、批量分析、显著结果汇总和可视化输出能力。
 
 ---
 
@@ -1445,15 +1179,13 @@ python scripts/python/main.py gwas-gene-catalog --config config/gwas_gene_catalo
 - Python 运行环境
 - R 运行环境
 - `SKAT`
-- `haplo.stats`
 - `plink2`
-- `bedtools`
+- `regenie`
 - 项目代码、默认配置文件和示例数据
 
 说明：
 
-- 当前 Docker 镜像尚未内置 `regenie`
-- 如需使用 `burden.engine=regenie` 或 `skato.engine=regenie`，请在宿主环境安装 `regenie`，或基于当前镜像再构建自定义镜像
+- 当前 Docker 镜像已内置 `regenie`
 - Docker 构建阶段会自动生成 `quant-assoc` 示例所需的 `data/plink2/` 输入文件，因此容器内可直接运行 `quant-assoc --config config/quant_assoc_plink2_example.yaml`
 
 说明：
@@ -1494,15 +1226,6 @@ docker run --rm -it \
   skato --config config/default.yaml
 ```
 
-示例：运行 `haplotype`
-
-```bash
-docker run --rm -it \
-  -v $(pwd)/docker-output:/work \
-  genetic-support-tool \
-  haplotype --config config/strong_signal_haplotype.yaml
-```
-
 示例：运行 `quant-assoc`
 
 ```bash
@@ -1510,15 +1233,6 @@ docker run --rm -it \
   -v $(pwd)/docker-output:/work \
   genetic-support-tool \
   quant-assoc --config config/quant_assoc_plink2_example.yaml
-```
-
-示例：运行 `gwas-overlap`
-
-```bash
-docker run --rm -it \
-  -v $(pwd)/docker-output:/work \
-  genetic-support-tool \
-  gwas-overlap --config config/gwas_overlap_demo.yaml
 ```
 
 ### 13.3 说明
@@ -1547,8 +1261,6 @@ docker run --rm -it \
 - 在容器内执行 smoke test：
   - `burden`
   - `skato`
-  - `haplotype`
-  - `gwas-overlap`
   - `quant-assoc`
 - 非 PR 事件会自动推送镜像到 GitHub Container Registry（`ghcr.io`）
 

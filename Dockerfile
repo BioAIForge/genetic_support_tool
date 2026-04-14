@@ -1,7 +1,6 @@
 FROM rocker/r2u:24.04
 
 ARG PLINK2_ZIP_URL=https://s3.amazonaws.com/plink2-assets/plink2_linux_x86_64_latest.zip
-ARG HAPLO_STATS_URL=https://cran.r-project.org/src/contrib/Archive/haplo.stats/haplo.stats_1.9.8.3.tar.gz
 ARG REGENIE_VERSION=4.1
 ARG REGENIE_ZIP_URL=https://github.com/rgcgithub/regenie/releases/download/v${REGENIE_VERSION}/regenie_v${REGENIE_VERSION}.gz_x86_64_Linux_mkl.zip
 
@@ -18,7 +17,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
     python3-venv \
-    bedtools \
     curl \
     wget \
     unzip \
@@ -65,14 +63,7 @@ RUN if [ -f /tmp/docker-assets/regenie.zip ]; then \
 ENV REGENIE_BIN=/opt/tools/regenie/regenie
 ENV PATH="/opt/tools/plink2:/opt/tools/regenie:${PATH}"
 
-RUN Rscript -e 'options(timeout=300); pkgs <- c("optparse","jsonlite","SKAT","arsenal","rms"); dir.create(Sys.getenv("R_LIBS_USER"), recursive=TRUE, showWarnings=FALSE); .libPaths(c(Sys.getenv("R_LIBS_USER"), .libPaths())); install.packages(pkgs, repos="https://cloud.r-project.org"); failed <- pkgs[!vapply(pkgs, requireNamespace, logical(1), quietly=TRUE)]; if (length(failed) > 0) stop(paste("Failed to install required R packages:", paste(failed, collapse=", ")))'
-
-RUN if [ -f /tmp/docker-assets/haplo.stats_1.9.8.3.tar.gz ]; then \
-      cp /tmp/docker-assets/haplo.stats_1.9.8.3.tar.gz /tmp/pkgsrc/haplo.stats.tar.gz; \
-    else \
-      curl -L --retry 5 --retry-all-errors --connect-timeout 30 --max-time 900 -o /tmp/pkgsrc/haplo.stats.tar.gz ${HAPLO_STATS_URL}; \
-    fi && \
-    Rscript -e 'options(timeout=300); dir.create(Sys.getenv("R_LIBS_USER"), recursive=TRUE, showWarnings=FALSE); .libPaths(c(Sys.getenv("R_LIBS_USER"), .libPaths())); install.packages("/tmp/pkgsrc/haplo.stats.tar.gz", repos=NULL, type="source"); if (!requireNamespace("haplo.stats", quietly=TRUE)) stop("Failed to install haplo.stats")'
+RUN Rscript -e 'options(timeout=300); pkgs <- c("optparse","jsonlite","SKAT"); dir.create(Sys.getenv("R_LIBS_USER"), recursive=TRUE, showWarnings=FALSE); .libPaths(c(Sys.getenv("R_LIBS_USER"), .libPaths())); install.packages(pkgs, repos="https://cloud.r-project.org"); failed <- pkgs[!vapply(pkgs, requireNamespace, logical(1), quietly=TRUE)]; if (length(failed) > 0) stop(paste("Failed to install required R packages:", paste(failed, collapse=", ")))'
 
 RUN if [ -f /tmp/docker-assets/plink2.zip ]; then \
       cp /tmp/docker-assets/plink2.zip /tmp/pkgsrc/plink2.zip; \

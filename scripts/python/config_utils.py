@@ -87,7 +87,7 @@ def validate_config(config: dict[str, Any], config_path: Path) -> None:
             "Supported values are 'pfile' and 'bfile'."
         )
 
-    for section_name in ("burden", "skato", "haplotype", "quant_assoc", "gwas_gene_catalog"):
+    for section_name in ("burden", "skato", "quant_assoc", "gwas_gene_catalog"):
         section = config.get(section_name)
         if section is None:
             continue

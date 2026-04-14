@@ -56,8 +56,6 @@ jobs:
           mkdir -p docker-ci-output
           docker run --rm -v "${PWD}/docker-ci-output:/work" genetic-support-tool:ci burden --config config/default.yaml
           docker run --rm -v "${PWD}/docker-ci-output:/work" genetic-support-tool:ci skato --config config/default.yaml
-          docker run --rm -v "${PWD}/docker-ci-output:/work" genetic-support-tool:ci haplotype --config config/strong_signal_haplotype.yaml
-          docker run --rm -v "${PWD}/docker-ci-output:/work" genetic-support-tool:ci gwas-overlap --config config/gwas_overlap_demo.yaml
           docker run --rm -v "${PWD}/docker-ci-output:/work" genetic-support-tool:ci quant-assoc --config config/quant_assoc_plink2_example.yaml
 
       - name: Log in to GitHub Container Registry

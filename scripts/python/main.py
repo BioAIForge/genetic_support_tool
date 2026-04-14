@@ -7,8 +7,6 @@ from pathlib import Path
 from config_utils import load_config
 from run_burden import run_burden
 from run_gwas_gene_catalog import run_gwas_gene_catalog
-from run_gwas_overlap import run_gwas_overlap
-from run_haplotype import run_haplotype
 from run_quant_assoc import run_quant_assoc
 from run_skato import run_skato
 
@@ -39,31 +37,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to YAML config file.",
     )
 
-    hap_parser = subparsers.add_parser(
-        "haplotype",
-        help="Run the local haplotype analysis module.",
-    )
-    hap_parser.add_argument(
-        "--config",
-        required=True,
-        help="Path to YAML config file.",
-    )
-
     quant_parser = subparsers.add_parser(
         "quant-assoc",
         help="Run the quantitative phenotype association module.",
     )
     quant_parser.add_argument(
-        "--config",
-        required=True,
-        help="Path to YAML config file.",
-    )
-
-    overlap_parser = subparsers.add_parser(
-        "gwas-overlap",
-        help="Run the GWAS overlap module.",
-    )
-    overlap_parser.add_argument(
         "--config",
         required=True,
         help="Path to YAML config file.",
@@ -100,22 +78,10 @@ def main() -> int:
         print(f"SKAT-O analysis completed: {result_path}")
         return 0
 
-    if args.command == "haplotype":
-        config = load_config(project_root / args.config)
-        result_path = run_haplotype(config, project_root)
-        print(f"Haplotype analysis completed: {result_path}")
-        return 0
-
     if args.command == "quant-assoc":
         config = load_config(project_root / args.config)
         result_path = run_quant_assoc(config, project_root)
         print(f"Quantitative association analysis completed: {result_path}")
-        return 0
-
-    if args.command == "gwas-overlap":
-        config = load_config(project_root / args.config)
-        result_path = run_gwas_overlap(config, project_root)
-        print(f"GWAS overlap analysis completed: {result_path}")
         return 0
 
     if args.command == "gwas-gene-catalog":
