@@ -206,6 +206,32 @@ docker run --rm -it \
   -v $(pwd)/output:/work \
   genetic-support-tool \
   quant-assoc --config config/quant_assoc_plink2_example.yaml
+
+# 运行 gwas-gene-catalog
+docker run --rm -it \
+  -v $(pwd)/output:/work \
+  genetic-support-tool \
+  gwas-gene-catalog --config config/gwas_gene_catalog_example.yaml
+
+# 运行 burden (regenie 引擎)
+docker run --rm -it \
+  -v $(pwd)/output:/work \
+  -e REGENIE_BIN=/opt/regenie/regenie \
+  genetic-support-tool \
+  burden --config config/regenie_example.yaml
+
+# 运行 skato (regenie 引擎)
+docker run --rm -it \
+  -v $(pwd)/output:/work \
+  -e REGENIE_BIN=/opt/regenie/regenie \
+  genetic-support-tool \
+  skato --config config/regenie_example.yaml
+
+# 运行 gwas-gene-catalog (API 模式)
+docker run --rm -it \
+  -v $(pwd)/output:/work \
+  genetic-support-tool \
+  gwas-gene-catalog --config config/gwas_gene_catalog_api_demo.yaml
 ```
 
 ### 自动构建
