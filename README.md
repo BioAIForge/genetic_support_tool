@@ -2,25 +2,19 @@
 
 ## 1. 工具概述
 
-本工具用于构建遗传学支撑分析流程，采用“Python 总控 + R 统计分析后端”的混合架构。
+本工具用于构建遗传学支撑分析流程，采用"Python 总控 + R 统计分析后端"的混合架构。
 
 工具定位：
-
 - 统一管理遗传分析方法的输入、参数、执行和结果输出
 - 以 Python 作为流程编排入口
 - 以 R 包或其他外部工具作为统计分析后端
 - 便于在服务器环境中部署、测试和扩展
 
 当前已实现的方法包括：
-
 - `burden`：Burden 集合检验
 - `skato`：SKAT-O 集合检验
 - `quant_assoc`：连续表型关联分析
 - `gwas_gene_catalog`：基因级 GWAS Catalog 证据回填
-
-后续可继续扩展的方法包括：
-
-- 其他基于 R、Python、Java 或命令行程序的分析模块
 
 ---
 
@@ -29,27 +23,13 @@
 本工具采用分层设计：
 
 ### 2.1 Python 总控层
-
-负责：
-
-- 命令行入口
-- 配置文件解析
-- 输入文件检查
-- 运行参数组织
-- 调用 R 脚本或其他后端程序
-- 结果文件整理
+负责命令行入口、配置文件解析、输入文件检查、运行参数组织、调用 R 脚本或其他后端程序、结果文件整理。
 
 ### 2.2 R 统计分析层
-
-负责：
-
-- 执行具体统计模型
-- 输出标准结果表
+负责执行具体统计模型，输出标准结果表。
 
 ### 2.3 外部工具扩展层
-
 当前已预留对以下类型后端的接入能力：
-
 - R 包
 - Python 脚本
 - Java 工具
@@ -59,148 +39,86 @@
 
 ## 3. 项目结构
 
-```text
+```
 genetic_support_tool/
-  config/
-    default.yaml
-    gwas_gene_catalog_api_demo.yaml
-    gwas_gene_catalog_demo.yaml
-    regenie_example.yaml
-    quant_assoc_plink2_example.yaml
-    strong_signal_skat.yaml
-    strong_signal_skato.yaml
-  data/
-    example/
-    example_strong_signal/
-    gwas_gene_catalog/
-  output/
+  config/           # 配置文件
+  data/             # 示例数据
+  output/           # 输出目录
   scripts/
-    python/
-      config_utils.py
-      main.py
-      run_burden.py
-      run_gwas_gene_catalog.py
-      run_regenie.py
-      run_quant_assoc.py
-      run_skato.py
-    r/
-      burden.R
-      quant_assoc.R
-      skato.R
-  requirements.txt
-  README.md
+    python/        # Python 入口脚本
+    r/              # R 统计脚本
+  docs/             # 详细文档
+  requirements.txt  # Python 依赖
 ```
 
-## 3.1 快速开始
+---
 
-如果你是第一次把代码拉到服务器，建议按下面顺序测试：
+## 4. 快速开始
 
-1. 先完成最小环境安装
-2. 先跑不依赖外部命令行工具的模块，确认 Python + R 链路可用
-3. 再按需安装 `plink2`、`regenie`，测试扩展模块
-
-推荐的阅读顺序是：
-
-- 本节先看整体流程
-- 详细依赖见 `7. 依赖说明`
-- 服务器安装见 `8. 服务器环境安装`
-- 各模块命令见 `9. 运行方式`
-- 如果希望用容器，直接看 `13. Docker 使用说明`
-
-### 3.1.1 服务器最小可运行流程
-
-以 Ubuntu / Debian 为例，拉取代码后可先执行：
+### 4.1 环境安装
 
 ```bash
+# Ubuntu / Debian
 sudo apt-get update
 sudo apt-get install -y python3 python3-venv python3-pip r-base
 
+# 创建虚拟环境并安装依赖
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
+# 安装 R 包
 mkdir -p ~/R/library
 export R_LIBS_USER=~/R/library
 Rscript -e 'dir.create(Sys.getenv("R_LIBS_USER"), recursive=TRUE, showWarnings=FALSE); .libPaths(c(Sys.getenv("R_LIBS_USER"), .libPaths())); install.packages(c("optparse","jsonlite","SKAT"), repos="https://cloud.r-project.org")'
 ```
 
-完成后，建议先跑一个最小 smoke test：
+详细依赖说明见 [docs/dependencies.md](docs/dependencies.md)。
+
+### 4.2 测试运行
+
+推荐测试顺序（按依赖复杂度由低到高）：
 
 ```bash
+# 1. 测试基础链路
 python scripts/python/main.py burden --config config/default.yaml
-```
 
-如果该命令可以成功生成 `output/burden_skat/` 下的结果文件，说明：
+# 2. 测试 SKAT-O
+python scripts/python/main.py skato --config config/default.yaml
 
-- Python 入口可用
-- YAML 配置解析可用
-- `Rscript` 调用链路可用
-- 基础的 TSV 输入输出流程可用
+# 3. 测试 GWAS Catalog 本地 TSV
+python scripts/python/main.py gwas-gene-catalog --config config/gwas_gene_catalog_demo.yaml
 
-### 3.1.2 推荐测试顺序
+# 4. 测试 GWAS Catalog API
+python scripts/python/main.py gwas-gene-catalog --config config/gwas_gene_catalog_api_demo.yaml
 
-推荐按依赖复杂度由低到高测试：
-
-1. `burden --config config/default.yaml`
-2. `skato --config config/default.yaml`
-3. `gwas-gene-catalog --config config/gwas_gene_catalog_demo.yaml`
-4. `gwas-gene-catalog --config config/gwas_gene_catalog_api_demo.yaml`
-5. `quant-assoc --config config/quant_assoc_plink2_example.yaml`
-6. `burden` / `skato` 的 `engine=regenie` 配置
-
-说明：
-
-- 第 1 步主要验证 Python + R + TSV 基础链路
-- 第 2 步会进一步验证 `SKAT` 相关依赖
-- 第 3 步会验证基于基因 symbol 的 GWAS Catalog 摘要/明细回填流程
-- 第 4 步会验证真实 GWAS Catalog API 可访问性
-- 第 5 步会验证 `plink2`
-- 第 6 步最后验证 `regenie`
-
-### 3.1.3 各模块开始前要注意什么
-
-#### Burden / SKAT-O
-
-这两个模块最适合先在服务器上跑通，因为它们直接使用仓库中的 TSV 示例数据。
-
-常见前置条件：
-
-- Python 依赖已安装
-- `Rscript` 可用
-- 对应 R 包已安装
-
-#### Quantitative Association
-
-`quant-assoc` 依赖 `plink2`。此外，当前示例配置默认读取 `PED/MAP` 示例前缀，因此第一次测试前建议先生成示例输入：
-
-```bash
+# 5. 测试连续表型关联分析（需先安装 plink2）
 python scripts/python/make_plink2_example.py
 python scripts/python/main.py quant-assoc --config config/quant_assoc_plink2_example.yaml
-```
 
-#### Burden / SKAT-O 的 regenie 场景
-
-`regenie` 场景建议最后测试，因为它比其他模块多依赖：
-
-- `regenie`
-- `plink2`，如果你需要先把示例 `PED/MAP` 转成 `PGEN`
-- annotation / set-list / mask-def / pred 等额外输入
-
-示例测试方式：
-
-```bash
+# 6. 测试 regenie（需先安装 regenie）
 plink2 --pedmap data/regenie/example_dataset --make-pgen --out data/regenie/example_dataset
 python scripts/python/main.py burden --config config/regenie_example.yaml
-python scripts/python/main.py skato --config config/regenie_example.yaml
 ```
 
-当前实现中，`engine=regenie` 会直接保留 regenie 原始输出文件，不再额外封装统一 TSV 结果表。
+### 4.3 Docker 运行
+
+```bash
+# 构建镜像
+docker build -t genetic-support-tool .
+
+# 运行示例
+docker run --rm -it \
+  -v $(pwd)/output:/work \
+  genetic-support-tool \
+  burden --config config/default.yaml
+```
+
+Docker 详情见 [docs/dependencies.md](docs/dependencies.md)。
 
 ---
 
-## 4. 功能模块说明
-
-### 4.0 模块总览
+## 5. 功能模块总览
 
 | 模块名称 | 方法名 | 命令行入口 | 主要外部工具 / R 包 | 当前实现状态 | 主要输出 |
 |---|---|---|---|---|---|
@@ -209,953 +127,64 @@ python scripts/python/main.py skato --config config/regenie_example.yaml
 | `quant-assoc` | 连续表型关联分析 | `python scripts/python/main.py quant-assoc --config ...` | `PLINK2` | 已实现 | `output/quant_assoc_<engine>/` |
 | `gwas-gene-catalog` | 基因级 GWAS Catalog 证据回填 | `python scripts/python/main.py gwas-gene-catalog --config ...` | GWAS Catalog TSV / 官方 REST API | 已实现 | `output/gwas_gene_catalog/` |
 
-### 4.1 Burden 模块
-
-方法名称：
-
-- `burden`
-
-用途：
-
-- 对一个基因或区域中的多个变异做集合层面的 Burden 检验
-- 判断总体变异负荷是否与目标表型相关
-
-当前支持引擎：
-
-#### `engine=skat`
-
-说明：
-
-- 标准公共包实现
-- 调用 `SKAT` R 包
-- 使用 `method = "Burden"`
-
-适用场景：
-
-- 正式的稀有变异集合检验
-- 与 `SKAT-O` 做对照分析
-
-#### `engine=regenie`
-
-说明：
-
-- 基于 `regenie` 的 step 2 set-based tests
-- 适用于原生 `PGEN` 或 `BED` 格式输入
-- 可用于 burden 风格的 mask-based rare variant testing
-- 需要先完成 `regenie` step 1，并提供 step 2 所需的 `pred` 文件
-
-输入文件：
-
-- `engine=skat`
-  - `geno_matrix.tsv`
-  - `pheno.tsv`
-  - `covar.tsv`
-- `engine=regenie`
-  - `PGEN/PVAR/PSAM` 或 `BED/BIM/FAM`
-  - phenotype file
-  - covariate file
-  - annotation file
-  - set-list file
-  - mask-def file
-
-输出文件：
-
-- `engine=skat`
-  - `output/burden_skat/burden_result.tsv`
-  - `output/burden_skat/burden_scores.tsv`
-  - `output/burden_skat/run_metadata.json`
-- `engine=regenie`
-  - `output/burden_regenie/regenie_burden_<phenotype>.regenie`
-  - `output/burden_regenie/run_metadata.json`
-
-结果解读重点：
-
-- `engine=skat`
-  - `burden_pvalue`
-- `engine=regenie`
-  - 直接查看 regenie 原始结果文件中的 `P` / `LOG10P`、`TEST`、`ID`、`N`、`NBURDEN` 等字段
-  - `run_metadata.json` 中的 `result_file` 会指向原始 `.regenie` 文件
-
-### 4.2 SKAT-O 模块
-
-方法名称：
-
-- `skato`
-
-用途：
-
-- 对一个基因或区域中的多个变异做 `SKAT-O` 集合检验
-- 在 Burden 与 SKAT 两种统计策略之间自适应组合
-
-实现方式：
-
-- 调用 `SKAT` R 包
-- 使用 `method = "SKATO"`
-- 可选新增 `engine=regenie`
-  - 调用 `regenie --step 2`
-  - 使用 `--vc-tests skato`
-
-适用场景：
-
-- 变异集合内部效应模式可能不一致
-- 希望采用比 Burden 更稳健的集合检验方法
-
-输入文件：
-
-- `engine=skat`
-  - `geno_matrix.tsv`
-  - `pheno.tsv`
-  - `covar.tsv`
-- `engine=regenie`
-  - `PGEN/PVAR/PSAM` 或 `BED/BIM/FAM`
-  - phenotype file
-  - covariate file
-  - annotation file
-  - set-list file
-  - mask-def file
-
-输出文件：
-
-- `engine=skat`
-  - `output/skato_skat/skato_result.tsv`
-  - `output/skato_skat/run_metadata.json`
-- `engine=regenie`
-  - `output/skato_regenie/regenie_skato_<phenotype>.regenie`
-  - `output/skato_regenie/run_metadata.json`
-
-结果解读重点：
-
-- `engine=skat`
-  - `skato_pvalue`
-- `engine=regenie`
-  - 直接查看 regenie 原始结果文件中的 `P` / `LOG10P`、`TEST`、`ID`、`N`、`NBURDEN` 等字段
-  - `run_metadata.json` 中的 `result_file` 会指向原始 `.regenie` 文件
-
-说明：
-
-- `SKAT-O` 重点输出集合层面的显著性
-- 当前版本不输出统一的 `beta` 和 `SE`
-- `engine=regenie` 时不再额外封装统一结果表，保留 regenie 原始输出
-
-### 4.3 连续表型关联分析模块
-
-方法名称：
-
-- `quant-assoc`
-
-用途：
-
-- 对基因矩阵中的每个位点逐一进行连续表型关联分析
-- 输出位点级别的 `beta`、`SE` 和 `P 值`
-
-实现方式：
-
-- 由 Python 将当前 `TSV genotype matrix` 转换为临时 `PED/MAP`
-- 调用 `PLINK2 --glm`
-- 解析 `PLINK2` 输出为统一结果表
-
-输入文件：
-
-- `geno_matrix.tsv`
-- `pheno.tsv`
-- `covar.tsv`
-
-输出文件：
-
-- `output/quant_assoc_plink2/quant_assoc_result.tsv`
-- `output/quant_assoc_plink2/run_metadata.json`
-
-结果解读重点：
-
-- `variant_id`
-- `beta`
-- `se`
-- `p_value`
-
-说明：
-
-- 当前模块已升级为 `PLINK2` 版实现
-- 当前模块直接使用 `PLINK2` 原生输入格式
-- 运行环境中必须提前安装 `plink2`
-- 默认启用 `--covar-variance-standardize`，以避免协变量量纲差异导致的数值不稳定
-
-### 4.4 GWAS Catalog 基因注释模块
-
-方法名称：
-
-- `gwas-gene-catalog`
-
-用途：
-
-- 针对本地结果表中的每个基因，检索 GWAS Catalog 中已有的关联证据
-- 将是否命中、命中条数、trait 摘要、最显著结果和研究编号等信息回填到主表
-- 同时额外输出一张命中明细表，便于后续追溯
-
-实现方式：
-
-- 读取本地基因级结果表
-- 按配置指定的 `gene_column` 提取 gene symbol
-- 读取本地 GWAS Catalog TSV，或从远程 URL 下载 TSV
-- 或直接调用 GWAS Catalog 官方 REST API
-- 以 gene symbol 为键，在 `MAPPED_GENE(S)` / `REPORTED GENE(S)` 等字段中做精确匹配
-- 为每个 gene 生成摘要列，并输出命中明细表
-
-输入文件：
-
-- `project_result_file`，一行一个基因的本地结果表
-- `gwas_reference_file`，或远程 `gwas_catalog_tsv_url`
-- 或 `source_mode: api` 对应的 GWAS Catalog 官方 REST API
-- `config.yaml`
-
-输出文件：
-
-- `output/gwas_gene_catalog/project_results_with_gwas_catalog.tsv`
-- `output/gwas_gene_catalog/gwas_catalog_gene_hits.tsv`
-- `output/gwas_gene_catalog/run_metadata.json`
-
-结果解读重点：
-
-- `gwas_catalog_found`
-- `gwas_catalog_result_count`
-- `gwas_catalog_traits`
-- `gwas_catalog_top_pvalue`
-- `gwas_catalog_top_study`
-
-说明：
-
-- 主表保留 gene 级摘要信息，适合浏览和交付
-- 明细表按 “一个 gene 命中的一条 GWAS Catalog 记录” 展开，适合追溯
-- 当前实现默认支持在 `mapped_genes` 和 `reported_genes` 两类字段中匹配
-- `source_mode: api` 时会按 gene symbol 调用官方 `associations` 接口并分页汇总结果
-
-字段解释：
-
-- `mapped_genes`：GWAS Catalog 根据位点注释和映射规则整理出的基因，更适合标准化检索
-- `reported_genes`：论文作者在研究中直接报告或讨论的基因，更接近原文解释
-- API 模式下官方接口只能直接按 `mapped_gene` 查询；如果你还想支持 `reported_genes`，需要同时提供本地 TSV 或远程 TSV 作为补充索引
-
-`project_results_with_gwas_catalog.tsv` 主要列含义：
-
-- 原始输入表中的所有列会原样保留
-- `gwas_catalog_found`：该 gene 是否命中 GWAS Catalog
-- `gwas_catalog_result_count`：命中的 GWAS Catalog 记录条数
-- `gwas_catalog_traits`：命中记录中去重后的标准化 trait 摘要
-- `gwas_catalog_reported_traits`：命中记录中去重后的 reported trait 摘要
-- `gwas_catalog_mapped_genes`：命中记录中去重后的 mapped genes 汇总
-- `gwas_catalog_top_variant`：最显著记录对应的变异标识，优先为 `rsID`
-- `gwas_catalog_top_pvalue`：最显著记录对应的 P 值
-- `gwas_catalog_top_study`：最显著记录对应的 study accession 和作者信息
-- `gwas_catalog_study_accessions`：该 gene 命中的所有 study accession 去重汇总
-
-`gwas_catalog_gene_hits.tsv` 主要列含义：
-
-- `project_row_index`：该命中对应主表中的第几行输入记录
-- `gene`：主表当前处理的 gene symbol
-- `gwas_catalog_trait`：GWAS Catalog 标准化 trait
-- `gwas_catalog_reported_trait`：论文 reported trait
-- `gwas_catalog_mapped_genes`：该条记录对应的 mapped genes
-- `gwas_catalog_reported_genes`：该条记录对应的 reported genes
-- `gwas_catalog_variant`：该条记录关联的变异标识，优先为 `rsID`
-- `gwas_catalog_pvalue`：该条记录的 P 值
-- `gwas_catalog_study_accession`：GWAS Catalog study accession，例如 `GCST...`
-- `gwas_catalog_first_author`：该研究记录的第一作者
-- `gwas_catalog_pubmed_id`：对应文献的 PubMed ID
-
-`run_metadata.json` 主要内容：
-
-- 输入结果表路径
-- 当前 gene 列名
-- 数据源类型：本地 TSV、远程下载 TSV 或 API
-- 汇总结果文件和明细文件路径
-- 输入行数与明细命中行数
-- API 模式下的接口地址、分页大小和最大页数
-
-API 模式注意事项：
-
-- GWAS Catalog 官方 `associations` 接口通常能稳定返回 `mapped_genes`、`trait`、`reported_trait`、`p_value`、`accession_id`、`first_author`、`pubmed_id`、`rsID`
-- `reported_genes` 在官方 API 响应中不一定总是提供，因此 API 模式下该列可能为空；如果你特别依赖 `reported_genes`，更建议使用本地 TSV 模式
-
-## 5. 输入文件说明
-
-### 5.1 基因型文件 `geno_matrix.tsv`
-
-要求：
-
-- 第一列必须为 `sample_id`
-- 后续每一列代表一个变异位点
-- 位点值通常为 `0`、`1`、`2`
-
-示例：
-
-```text
-sample_id	var1	var2	var3	var4
-S1	0	1	0	1
-S2	1	0	1	0
-```
-
-### 5.2 表型文件 `pheno.tsv`
-
-要求：
-
-- 必须包含 `sample_id`
-- 必须包含配置文件中指定的表型列
-
-示例：
-
-```text
-sample_id	phenotype
-S1	5.2
-S2	6.1
-```
-
-### 5.3 协变量文件 `covar.tsv`
-
-要求：
-
-- 必须包含 `sample_id`
-- 可包含年龄、性别、PC、批次等协变量
-
-示例：
-
-```text
-sample_id	age	sex	PC1	PC2
-S1	38	0	-0.02	0.01
-S2	41	1	-0.01	0.00
-```
+各模块的详细说明、输入输出格式见 [docs/io_files.md](docs/io_files.md)。
 
 ---
 
-## 6. 配置文件说明
+## 6. 配置文件
 
-默认配置文件：
+配置文件位于 `config/` 目录：
 
-- [default.yaml](D:\Genos\生信工具分析\genetic_support_tool\config\default.yaml)
-- [gwas_gene_catalog_api_demo.yaml](D:\Genos\生信工具分析\genetic_support_tool\config\gwas_gene_catalog_api_demo.yaml)
-- [gwas_gene_catalog_demo.yaml](D:\Genos\生信工具分析\genetic_support_tool\config\gwas_gene_catalog_demo.yaml)
-- [gwas_gene_catalog_official.yaml](D:\Genos\生信工具分析\genetic_support_tool\config\gwas_gene_catalog_official.yaml)
-  - 使用条件：需先手动从 GWAS Catalog 官网下载 `All associations v1.0.2` 完整 TSV，解压后放到 `data/gwas_gene_catalog/gwas_catalog_associations_v1.0.2.tsv`
-- [regenie_example.yaml](D:\Genos\生信工具分析\genetic_support_tool\config\regenie_example.yaml)
-- [quant_assoc_plink2_example.yaml](D:\Genos\生信工具分析\genetic_support_tool\config\quant_assoc_plink2_example.yaml)
+| 配置文件 | 用途 |
+|----------|------|
+| `default.yaml` | 默认配置 |
+| `strong_signal_skat.yaml` | Burden 强信号测试 |
+| `strong_signal_skato.yaml` | SKAT-O 强信号测试 |
+| `regenie_example.yaml` | regenie 示例 |
+| `quant_assoc_plink2_example.yaml` | PLINK2 示例 |
+| `gwas_gene_catalog_demo.yaml` | GWAS Catalog 本地 TSV 示例 |
+| `gwas_gene_catalog_api_demo.yaml` | GWAS Catalog API 示例 |
+| `gwas_gene_catalog_official.yaml` | 官方完整 TSV + API 索引 |
 
-regenie 示例模板文件：
-
-- [example_pheno.tsv](D:\Genos\生信工具分析\genetic_support_tool\data\regenie\example_pheno.tsv)
-- [example_covar.tsv](D:\Genos\生信工具分析\genetic_support_tool\data\regenie\example_covar.tsv)
-- [example_dataset.ped](D:\Genos\生信工具分析\genetic_support_tool\data\regenie\example_dataset.ped)
-- [example_dataset.map](D:\Genos\生信工具分析\genetic_support_tool\data\regenie\example_dataset.map)
-- [example.annotations](D:\Genos\生信工具分析\genetic_support_tool\data\regenie\example.annotations)
-- [example.setlist](D:\Genos\生信工具分析\genetic_support_tool\data\regenie\example.setlist)
-- [example.masks](D:\Genos\生信工具分析\genetic_support_tool\data\regenie\example.masks)
-
-GWAS Catalog 基因注释示例文件：
-
-- [project_genes.tsv](D:\Genos\生信工具分析\genetic_support_tool\data\gwas_gene_catalog\project_genes.tsv)
-- [gwas_catalog_reference.tsv](D:\Genos\生信工具分析\genetic_support_tool\data\gwas_gene_catalog\gwas_catalog_reference.tsv)
-
-官方 GWAS Catalog association TSV 建议：
-
-- 推荐下载官网 `All associations v1.0.2` 的完整 TSV
-- 下载后解压并放到 `data/gwas_gene_catalog/gwas_catalog_associations_v1.0.2.tsv`
-- 该文件体积较大，不建议纳入 Git 仓库；当前 `.gitignore` 已默认忽略该文件和同目录下的 zip 压缩包
-- 如需在 API 模式下同时支持 `reported_genes`，建议使用该官方 TSV 作为补充索引
-
-示例：
-
-```yaml
-project:
-  name: demo_genetic_support
-
-analysis:
-  method: burden
-
-input:
-  genotype_matrix: data/example/geno_matrix.tsv
-  phenotype_file: data/example/pheno.tsv
-  covariate_file: data/example/covar.tsv
-
-phenotype:
-  name: phenotype
-  type: continuous
-
-burden:
-  set_id: DEMO_GENE
-  engine: skat
-  covariates:
-    - age
-    - sex
-    - PC1
-    - PC2
-
-skato:
-  set_id: DEMO_GENE
-  covariates:
-    - age
-    - sex
-    - PC1
-    - PC2
-
-output:
-  root_dir: output
-```
-
-关键参数说明：
-
-- `analysis.method`：方法名称
-- `phenotype.name`：表型列名
-- `phenotype.type`：`continuous` 或 `binary`
-- `burden.set_id`：Burden 分析对象名称
-- `burden.engine`：`skat` 或 `regenie`
-- `burden.regenie_bin`：`regenie` 可执行文件路径，默认 `regenie`
-- `burden.regenie_aaf_bins`：set-based burden 的 AAF 分箱，默认 `0.01`
-- `burden.regenie_build_mask`：mask 聚合方式，默认 `max`
-- `burden.regenie_ignore_pred`：是否跳过 step 1 prediction 文件，适合最小 demo，默认 `false`
-- `burden.regenie_bsize`：step 2 block size，默认 `200`
-- `burden.covariates`：Burden 协变量列表
-- `skato.set_id`：SKAT-O 分析对象名称
-- `skato.engine`：`skat` 或 `regenie`
-- `skato.regenie_bin`：`regenie` 可执行文件路径，默认 `regenie`
-- `skato.regenie_aaf_bins`：VC test 的 AAF 分箱，默认 `0.01`
-- `skato.regenie_build_mask`：mask 聚合方式，默认 `max`
-- `skato.regenie_ignore_pred`：是否跳过 step 1 prediction 文件，适合最小 demo，默认 `false`
-- `skato.regenie_bsize`：step 2 block size，默认 `200`
-- `skato.covariates`：SKAT-O 协变量列表
-- `regenie.genotype_format`：`pfile` 或 `bfile`
-- `input.pred_file`：`regenie` step 1 输出的 prediction 文件；当 `regenie_ignore_pred=false` 时必填
-- `quant_assoc.covar_variance_standardize`：是否对协变量做方差标准化，建议设为 `true`
-- `gwas_gene_catalog.project_result_file`：本地基因级结果表路径
-- `gwas_gene_catalog.gene_column`：gene symbol 所在列名，默认 `gene`
-- `gwas_gene_catalog.source_mode`：`tsv` 或 `api`
-- `gwas_gene_catalog.gwas_reference_file`：本地 GWAS Catalog 参考 TSV
-- `gwas_gene_catalog.gwas_catalog_tsv_url`：远程 GWAS Catalog TSV 下载地址
-- `gwas_gene_catalog.gwas_catalog_api_base_url`：GWAS Catalog 官方 REST API 地址，默认 `https://www.ebi.ac.uk/gwas/rest/api/v2/associations`
-- `gwas_gene_catalog.api_page_size`：API 单页大小，默认 `100`
-- `gwas_gene_catalog.api_max_pages`：API 最多拉取页数；不设时会继续拉取全部分页，demo 建议先设一个较小值
-- `gwas_gene_catalog.api_extended_geneset`：是否启用 API 的 `extended_geneset` 参数，默认 `false`
-- `gwas_gene_catalog.match_fields`：匹配字段范围，支持 `mapped_genes`、`reported_genes`
-  - `source_mode=tsv` 时两者都可直接使用
-  - `source_mode=api` 时官方接口只支持 `mapped_gene` 直查；若仍需 `reported_genes`，需同时提供 `gwas_reference_file` 或 `gwas_catalog_tsv_url` 作为补充索引
-- `output.root_dir`：输出根目录
-
-GWAS Catalog 官方 API 参考：
-
-- `https://www.ebi.ac.uk/gwas/rest/api/v2/docs`
-- `https://www.ebi.ac.uk/gwas/docs/tut/api`
+完整参数说明见 [docs/config_reference.md](docs/config_reference.md)。
 
 ---
 
-## 7. 依赖说明
+## 7. 运行方式
 
-### 7.1 Python 依赖
-
-当前 Python 依赖：
-
-- `PyYAML`
-
-安装命令：
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
-
-### 7.2 R 依赖
-
-最低版本要求：
-
-- 推荐 `R >= 4.3`
-- 不建议使用 `R 4.1.x` 及更低版本
-
-说明：
-
-- 当前工具中的 `SKAT` 等 R 包在较旧版本 R 环境下可能存在不可安装或兼容性不足的问题
-- 如果需要稳定运行 `burden(engine=skat)`、`skato` 等模块，建议在较新的 R 版本中部署
-
-Burden / SKAT-O 的基础 R 包：
-
-- `optparse`
-- `jsonlite`
-
-安装命令：
-
-```bash
-mkdir -p ~/R/library
-export R_LIBS_USER=~/R/library
-Rscript -e 'dir.create(Sys.getenv("R_LIBS_USER"), recursive=TRUE, showWarnings=FALSE); .libPaths(c(Sys.getenv("R_LIBS_USER"), .libPaths())); install.packages(c("optparse","jsonlite"), repos="https://cloud.r-project.org")'
-```
-
-### 7.3 方法对应 R 包依赖
-
-#### Burden 标准版
-
-适用配置：
-
-- `burden.engine: skat`
-
-需要：
-
-- `optparse`
-- `jsonlite`
-- `SKAT`
-
-安装命令：
-
-```bash
-mkdir -p ~/R/library
-export R_LIBS_USER=~/R/library
-Rscript -e 'dir.create(Sys.getenv("R_LIBS_USER"), recursive=TRUE, showWarnings=FALSE); .libPaths(c(Sys.getenv("R_LIBS_USER"), .libPaths())); install.packages(c("optparse","jsonlite","SKAT"), repos="https://cloud.r-project.org")'
-```
-
-#### SKAT-O
-
-适用方法：
-
-- `skato`
-
-需要：
-
-- `optparse`
-- `jsonlite`
-- `SKAT`
-
-安装命令：
-
-```bash
-mkdir -p ~/R/library
-export R_LIBS_USER=~/R/library
-Rscript -e 'dir.create(Sys.getenv("R_LIBS_USER"), recursive=TRUE, showWarnings=FALSE); .libPaths(c(Sys.getenv("R_LIBS_USER"), .libPaths())); install.packages(c("optparse","jsonlite","SKAT"), repos="https://cloud.r-project.org")'
-```
-
-说明：
-
-- 如果方法底层调用 R 包，则执行环境中必须预先安装对应 R 包
-- 仅安装 Python 依赖不足以运行完整工具
-
-#### Burden / SKAT-O regenie 后端
-
-适用配置：
-
-- `burden.engine: regenie`
-- `skato.engine: regenie`
-
-需要：
-
-- `regenie`
-
-安装说明：
-
-- `regenie` 为独立命令行工具，不通过 R 包安装
-- 运行环境中需预先安装 `regenie`，并保证可在 PATH 中调用
-- 如果不在 PATH 中，可在配置文件中通过 `burden.regenie_bin` 或 `skato.regenie_bin` 指定绝对路径
-- 当前仓库提供了一套 toy demo 文件，可先用来验证 `regenie` 调用链路
-- demo 运行前仍需先将 [example_dataset.ped](D:\Genos\生信工具分析\genetic_support_tool\data\regenie\example_dataset.ped) / [example_dataset.map](D:\Genos\生信工具分析\genetic_support_tool\data\regenie\example_dataset.map) 转成 `PGEN`
-- 真实分析建议使用 step 1 生成的 `pred` 文件；demo 可通过 `regenie_ignore_pred=true` 跳过
-- toy demo 的 `regenie_aaf_bins` 已放宽到 `1.0`，否则示例数据会因过于常见而生成空结果
-- 当前 `burden.engine=regenie` 与 `skato.engine=regenie` 会直接保留 regenie 原始输出文件，不再额外封装统一 TSV 结果表
-
-验证命令：
-
-```bash
-regenie --help
-```
-
-#### Quantitative Association
-
-适用方法：
-
-- `quant-assoc`
-
-需要：
-
-- `plink2`
-
-安装命令：
-
-```bash
-plink2 --version
-```
-
-说明：
-
-- `quant-assoc` 当前不依赖 R 包
-- 需要在执行环境中预先安装 `plink2`，并保证命令可在 PATH 中调用
-- 如果 `plink2` 不在 PATH 中，可在配置文件中通过 `quant_assoc.plink2_bin` 指定可执行文件路径
-- 官方文档对本项目使用的 `--pedmap`、`--make-pgen`、`--glm` 没有单独给出硬性最低版本号
-- 由于 `PLINK 2.0 alpha` 仍在持续更新，且 `--make-pgen` / `--glm` 在近期官方构建中仍有 bugfix，建议使用官方近期 alpha 构建，而不要使用过旧 build
-- 本项目当前已在 `PLINK v2.0.0-a.7LM (11 Mar 2026)` 上验证相关命令链路
-
-`plink2` 安装建议：
-
-1. 从 PLINK2 官方下载 Linux 版本压缩包
-2. 解压后将 `plink2` 可执行文件放到 PATH 目录，或在配置中指定绝对路径
-
-示例：
-
-```bash
-mkdir -p ~/tools/plink2
-cd ~/tools/plink2
-wget https://s3.amazonaws.com/plink2-assets/alpha6/plink2_linux_x86_64_20260310.zip
-unzip plink2_linux_x86_64_20260310.zip
-chmod +x plink2
-~/tools/plink2/plink2 --version
-```
-
-如果希望全局可用，可加入 PATH：
-
-```bash
-echo 'export PATH="$HOME/tools/plink2:$PATH"' >> ~/.bashrc
-source ~/.bashrc
-plink2 --version
-```
-
-说明：
-
-- 实际下载文件名可能会随官方版本更新而变化，请以官方页面为准
-- 官方下载与输入格式说明见：
-  - https://www.cog-genomics.org/plink/2.0/
-  - https://www.cog-genomics.org/plink/2.0/input
-  - https://www.cog-genomics.org/plink/2.0/data
-  - https://www.cog-genomics.org/plink/2.0/assoc
-
----
-
-## 8. 服务器环境安装
-
-### 8.1 Ubuntu / Debian
-
-```bash
-sudo apt-get update
-sudo apt-get install -y python3 python3-venv python3-pip r-base
-```
-
-然后进入项目目录执行：
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-mkdir -p ~/R/library
-export R_LIBS_USER=~/R/library
-Rscript -e 'dir.create(Sys.getenv("R_LIBS_USER"), recursive=TRUE, showWarnings=FALSE); .libPaths(c(Sys.getenv("R_LIBS_USER"), .libPaths())); install.packages(c("optparse","jsonlite"), repos="https://cloud.r-project.org")'
-Rscript -e 'dir.create(Sys.getenv("R_LIBS_USER"), recursive=TRUE, showWarnings=FALSE); .libPaths(c(Sys.getenv("R_LIBS_USER"), .libPaths())); install.packages("SKAT", repos="https://cloud.r-project.org")'
-```
-
-由于默认 Burden 引擎已经切换为 `SKAT`，建议在基础环境安装阶段直接完成 `SKAT` 安装。
-
-如果还需要运行 `quant-assoc`，还需要安装 `plink2` 并确保命令可用。
-
-如果需要运行 `gwas-gene-catalog`，默认不依赖额外命令行工具；如需远程下载 GWAS Catalog TSV 或直接调用官方 REST API，只需保证服务器能够访问对应 URL。
-
-### 8.2 CentOS / RHEL
-
-```bash
-sudo yum install -y python3 python3-pip R
-```
-
-然后执行与上面相同的 Python 和 R 包安装步骤。
-
-### 8.3 环境变量持久化
-
-建议将用户级 R 包路径写入 shell 配置文件：
-
-```bash
-echo 'export R_LIBS_USER=~/R/library' >> ~/.bashrc
-source ~/.bashrc
-```
-
-如果使用 `zsh`，则写入 `~/.zshrc`。
-
----
-
-## 9. 运行方式
-
-### 9.1 Burden 默认示例
+### 7.1 Burden
 
 ```bash
 python scripts/python/main.py burden --config config/default.yaml
 ```
 
-### 9.2 Burden 强信号测试
-
-```bash
-python scripts/python/main.py burden --config config/strong_signal_skat.yaml
-```
-
-regenie 模板：
-
-```bash
-plink2 --pedmap data/regenie/example_dataset --make-pgen --out data/regenie/example_dataset
-python scripts/python/main.py burden --config config/regenie_example.yaml
-```
-
-### 9.3 SKAT-O 默认示例
+### 7.2 SKAT-O
 
 ```bash
 python scripts/python/main.py skato --config config/default.yaml
 ```
 
-### 9.4 SKAT-O 强信号测试
-
-```bash
-python scripts/python/main.py skato --config config/strong_signal_skato.yaml
-```
-
-regenie 模板：
-
-```bash
-plink2 --pedmap data/regenie/example_dataset --make-pgen --out data/regenie/example_dataset
-python scripts/python/main.py skato --config config/regenie_example.yaml
-```
-
-### 9.5 连续表型关联分析示例
+### 7.3 连续表型关联分析
 
 ```bash
 python scripts/python/main.py quant-assoc --config config/quant_assoc_plink2_example.yaml
 ```
 
-### 9.6 GWAS Catalog 基因注释示例
+### 7.4 GWAS Catalog 基因注释
 
 ```bash
+# 本地 TSV 模式
 python scripts/python/main.py gwas-gene-catalog --config config/gwas_gene_catalog_demo.yaml
-```
 
-使用真实 GWAS Catalog 官方 API：
-
-```bash
+# API 模式
 python scripts/python/main.py gwas-gene-catalog --config config/gwas_gene_catalog_api_demo.yaml
 ```
 
-使用官方完整 association TSV + API 补充索引：
-
-前提：
-
-- 先手动下载 GWAS Catalog 官网 `All associations v1.0.2` 完整 TSV
-- 解压后放到 `data/gwas_gene_catalog/gwas_catalog_associations_v1.0.2.tsv`
-
-运行：
-
-```bash
-python scripts/python/main.py gwas-gene-catalog --config config/gwas_gene_catalog_official.yaml
-```
-
-说明：
-
-- 真实 API 下，热门基因可能命中很多分页，首次联调建议先设置较小的 `api_max_pages`
-- 如果你的服务器网络较慢，可先用本地 TSV 模式验证主流程，再切换到 API 模式
-
 ---
 
-## 10. 输出文件说明
-
-### 10.1 Burden 输出
-
-目录：
-
-- `output/burden_skat/`
-- `output/burden_regenie/`
-
-文件：
-
-- `engine=skat`
-  - `burden_result.tsv`
-  - `burden_scores.tsv`
-  - `run_metadata.json`
-- `engine=regenie`
-  - `regenie_burden_<phenotype>.regenie`
-  - `run_metadata.json`
-
-`burden_result.tsv` 主要字段：
-
-- `set_id`
-- `engine`
-- `phenotype_name`
-- `phenotype_type`
-- `n_samples`
-- `n_variants`
-- `burden_beta_or_logodds`
-- `burden_se`
-- `burden_pvalue`
-- `burden_model`
-
-解读：
-
-- `burden_pvalue` 是最核心结果
-- `engine=skat` 时，`beta` 和 `SE` 可能为 `NA`，此时重点看集合层面的 `pvalue`
-- `engine=regenie` 时，不再额外生成统一封装的 `burden_result.tsv`
-- `engine=regenie` 时，结果来自 regenie set-based burden 检验，直接查看原始 `.regenie` 文件中的 `P` / `LOG10P`、`TEST`、`ID`、`N`、`NBURDEN` 等字段
-- `engine=regenie` 时，`run_metadata.json` 中的 `result_file` 会指向原始 `.regenie` 文件
-
-`burden_scores.tsv` 主要字段：
-
-- `sample_id`
-- `burden_score`
-- `phenotype`
-
-用途：
-
-- 检查样本级 burden score 是否合理
-- 辅助理解 burden score 与表型的关系
-
-### 10.2 SKAT-O 输出
-
-目录：
-
-- `output/skato_skat/`
-- `output/skato_regenie/`
-
-文件：
-
-- `engine=skat`
-  - `skato_result.tsv`
-  - `run_metadata.json`
-- `engine=regenie`
-  - `regenie_skato_<phenotype>.regenie`
-  - `run_metadata.json`
-
-`skato_result.tsv` 主要字段：
-
-- `set_id`
-- `engine`
-- `phenotype_name`
-- `phenotype_type`
-- `n_samples`
-- `n_variants`
-- `skato_pvalue`
-- `skato_model`
-
-解读：
-
-- `skato_pvalue` 是核心结果
-- `P` 越小，说明该变异集合与表型关联越明显
-- `engine=regenie` 时，不再额外生成统一封装的 `skato_result.tsv`
-- `engine=regenie` 时，直接查看原始 `.regenie` 文件中的 `P` / `LOG10P`、`TEST`、`ID`、`N`、`NBURDEN` 等字段
-- `engine=regenie` 时，`run_metadata.json` 中的 `result_file` 会指向原始 `.regenie` 文件
-
-### 10.3 连续表型关联分析输出
-
-目录：
-
-- `output/quant_assoc_plink2/`
-
-文件：
-
-- `quant_assoc_result.tsv`
-- `run_metadata.json`
-
-`quant_assoc_result.tsv` 主要字段：
-
-- `variant_id`
-- `chr`
-- `pos`
-- `ref`
-- `alt`
-- `n_samples`
-- `beta`
-- `se`
-- `p_value`
-
-### 10.4 GWAS Catalog 基因注释输出
-
-目录：
-
-- `output/gwas_gene_catalog/`
-
-文件：
-
-- `project_results_with_gwas_catalog.tsv`
-- `gwas_catalog_gene_hits.tsv`
-- `run_metadata.json`
-
-`project_results_with_gwas_catalog.tsv` 主要新增字段：
-
-- `gwas_catalog_found`
-- `gwas_catalog_result_count`
-- `gwas_catalog_traits`
-- `gwas_catalog_reported_traits`
-- `gwas_catalog_mapped_genes`
-- `gwas_catalog_top_variant`
-- `gwas_catalog_top_pvalue`
-- `gwas_catalog_top_study`
-- `gwas_catalog_study_accessions`
-
-解读：
-
-- `gwas_catalog_found` 表示该 gene 是否在 GWAS Catalog 中检索到命中
-- `gwas_catalog_result_count` 表示命中条数
-- `gwas_catalog_traits` 和 `gwas_catalog_reported_traits` 为去重后的 trait 摘要
-- `gwas_catalog_top_pvalue` 表示该 gene 命中记录中最显著的一条
-- `gwas_catalog_top_study` 和 `gwas_catalog_study_accessions` 便于后续回溯原始研究
-
-字段说明：
-
-- 原始输入表列会完整保留
-- `gwas_catalog_found`：该 gene 是否命中 GWAS Catalog
-- `gwas_catalog_result_count`：命中的记录数
-- `gwas_catalog_result_truncated`：该 gene 的 API 结果是否因 `api_max_pages` 被截断
-- `gwas_catalog_traits`：去重后的标准化 trait 汇总
-- `gwas_catalog_reported_traits`：去重后的 reported trait 汇总
-- `gwas_catalog_mapped_genes`：去重后的 mapped genes 汇总
-- `gwas_catalog_top_variant`：最显著记录对应的变异标识
-- `gwas_catalog_top_pvalue`：最显著记录对应的 P 值
-- `gwas_catalog_top_study`：最显著记录对应的 study accession 和作者
-- `gwas_catalog_study_accessions`：所有命中记录对应的 study accession 汇总
-
-`gwas_catalog_gene_hits.tsv` 说明：
-
-- 一行对应一个 gene 命中的一条 GWAS Catalog 记录
-- 适合做追溯、人工核查和二次筛选
-
-主要列含义：
-
-- `project_row_index`：对应主表中的输入行号
-- `gene`：当前处理的 gene symbol
-- `gwas_catalog_trait`：GWAS Catalog 标准化 trait
-- `gwas_catalog_reported_trait`：论文原始 reported trait
-- `gwas_catalog_mapped_genes`：该条命中关联的 mapped genes
-- `gwas_catalog_reported_genes`：该条命中关联的 reported genes
-- `gwas_catalog_variant`：该条命中关联的变异标识，优先为 `rsID`
-- `gwas_catalog_pvalue`：该条命中的 P 值
-- `gwas_catalog_or_value`：OR 或按等位基因拷贝数估计的效应值
-- `gwas_catalog_beta`：GWAS Catalog 提供的 beta 值
-- `gwas_catalog_risk_frequency`：风险等位基因频率
-- `gwas_catalog_ci`：由上下界拼出的置信区间字符串
-- `gwas_catalog_location`：位点坐标信息
-- `gwas_catalog_effect_allele`：效应等位基因
-- `gwas_catalog_study_accession`：GWAS Catalog study accession
-- `gwas_catalog_first_author`：研究第一作者
-- `gwas_catalog_pubmed_id`：对应文献 PubMed ID
-- `gwas_catalog_query_truncated`：该条结果所在 gene 的 API 查询是否因分页上限被截断
-
-`run_metadata.json` 说明：
-
-- 记录当前运行使用的输入文件、结果文件、命中数量和数据源类型
-- API 模式下还会记录接口地址、分页大小、最大页数、是否启用 `extended_geneset`，以及本次运行是否存在截断查询
-## 11. 使用说明
-
-建议使用顺序：
-
-1. 先安装 Python 依赖
-2. 再安装所选方法需要的 R 包
-3. 根据方法准备输入文件
-   - `burden / skato`：准备 `geno_matrix.tsv`、`pheno.tsv`、`covar.tsv`
-   - `quant-assoc`：准备 `PLINK2` 原生输入文件和 `pheno.tsv`、`covar.tsv`
-   - `gwas-gene-catalog`：准备基因级结果表和 GWAS Catalog 参考 TSV
-4. 编辑配置文件
-5. 执行对应命令
-6. 查看 `output/` 下结果文件
-
-建议先使用强信号测试数据验证：
-
-- 工具是否安装成功
-- 方法是否能跑通
-- 输出结果是否符合预期
-
----
-
-## 12. 说明
+## 8. 说明
 
 当前版本为可运行的分析工具原型，已具备：
-
 - 统一 CLI 入口
 - 标准化输入输出
 - Burden 方法
@@ -1165,112 +194,12 @@ python scripts/python/main.py gwas-gene-catalog --config config/gwas_gene_catalo
 - 示例数据
 - 服务器部署说明
 
-后续可在当前框架上继续扩展更多遗传学支撑分析模块，并在现有 4 个模块基础上增强输入适配、批量分析、显著结果汇总和可视化输出能力。
+后续可在当前框架上继续扩展更多遗传学支撑分析模块。
 
 ---
 
-## 13. Docker 使用说明
+## 9. 参考文档
 
-本项目支持封装为 Docker 镜像运行，以统一环境依赖并简化部署。
-
-当前 Docker 镜像中包含：
-
-- 基于 `rocker/r2u` 的 R 运行环境
-- Python 运行环境
-- R 运行环境
-- `SKAT`
-- `plink2`
-- `regenie`
-- 项目代码、默认配置文件和示例数据
-
-说明：
-
-- 当前 Docker 镜像已内置 `regenie`
-- Docker 构建阶段会自动生成 `quant-assoc` 示例所需的 `data/plink2/` 输入文件，因此容器内可直接运行 `quant-assoc --config config/quant_assoc_plink2_example.yaml`
-
-说明：
-
-
-### 13.1 构建镜像
-
-在项目根目录执行：
-
-```bash
-docker build -t genetic-support-tool .
-```
-
-### 13.2 基本运行方式
-
-说明：
-
-- 镜像内已包含项目代码、默认配置和示例数据
-- 在其他环境中验证镜像时，不需要再额外拷贝整套项目代码
-- Docker 环境中默认输出目录通过环境变量重定向到容器内 `/work/output`
-- 如需保留输出结果，建议挂载 `/work`
-
-示例：运行 `burden`
-
-```bash
-docker run --rm -it \
-  -v $(pwd)/docker-output:/work \
-  genetic-support-tool \
-  burden --config config/default.yaml
-```
-
-示例：运行 `skato`
-
-```bash
-docker run --rm -it \
-  -v $(pwd)/docker-output:/work \
-  genetic-support-tool \
-  skato --config config/default.yaml
-```
-
-示例：运行 `quant-assoc`
-
-```bash
-docker run --rm -it \
-  -v $(pwd)/docker-output:/work \
-  genetic-support-tool \
-  quant-assoc --config config/quant_assoc_plink2_example.yaml
-```
-
-### 13.3 说明
-
-- 镜像默认入口为：
-  - `python3 scripts/python/main.py`
-- 因此在 `docker run` 中只需要追加方法名和参数
-- 如仅验证镜像自带示例，无需挂载项目代码目录
-- 如需持久化输出结果，建议挂载宿主机目录到 `/work`
-- 如需使用自定义配置或自定义输入数据，可额外挂载数据目录并在配置文件中使用绝对路径
-
-### 13.4 GitHub Actions 自动构建 Docker 镜像
-
-仓库已提供 GitHub Actions 工作流：
-
-- 文件路径：`.github/workflows/docker-image.yml`
-- 触发条件：
-  - Push 到 `main` / `master`
-  - 针对 `main` / `master` 的 Pull Request
-  - 推送 `v*` Tag
-  - 手动触发 `workflow_dispatch`
-
-工作流行为：
-
-- 先构建 Docker 镜像
-- 在容器内执行 smoke test：
-  - `burden`
-  - `skato`
-  - `quant-assoc`
-- 非 PR 事件会自动推送镜像到 GitHub Container Registry（`ghcr.io`）
-
-镜像标签规则：
-
-- 分支构建：`ghcr.io/<owner>/<repo>:<branch>`
-- Tag 构建：`ghcr.io/<owner>/<repo>:<tag>`
-- 默认分支额外附带：`latest`
-
-如需在 GitHub 上成功推送镜像，请确认：
-
-- 仓库 Actions 权限允许 `Read and write permissions`
-- 组织或个人账号允许向 `ghcr.io` 发布包
+- [输入输出文件说明](docs/io_files.md)
+- [配置文件参数参考](docs/config_reference.md)
+- [依赖安装说明](docs/dependencies.md)
