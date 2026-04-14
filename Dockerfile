@@ -49,16 +49,23 @@ RUN if [ -f /tmp/docker-assets/regenie.zip ]; then \
     else \
       curl -L --retry 5 --retry-all-errors --connect-timeout 30 --max-time 1800 -o /tmp/pkgsrc/regenie_asset ${REGENIE_ZIP_URL}; \
     fi && \
-    if unzip -Z1 /tmp/pkgsrc/regenie_asset >/tmp/pkgsrc/regenie_listing 2>/dev/null; then \
-      asset_name=$(head -n 1 /tmp/pkgsrc/regenie_listing); \
-      unzip -p /tmp/pkgsrc/regenie_asset "$asset_name" > /opt/tools/regenie/regenie; \
+    rm -rf /tmp/pkgsrc/regenie_extract && mkdir -p /tmp/pkgsrc/regenie_extract && \
+    if unzip -q /tmp/pkgsrc/regenie_asset -d /tmp/pkgsrc/regenie_extract 2>/dev/null; then \
+      regenie_candidate=$(find /tmp/pkgsrc/regenie_extract -type f \( -name 'regenie' -o -name 'regenie_*' -o -name 'regenie_v*' \) ! -name '*.txt' ! -name '*.md' | head -n 1); \
+      if [ -z "$regenie_candidate" ]; then \
+        echo "Failed to locate regenie binary inside downloaded archive" >&2; \
+        find /tmp/pkgsrc/regenie_extract -maxdepth 3 -type f >&2; \
+        exit 1; \
+      fi; \
+      cp "$regenie_candidate" /opt/tools/regenie/regenie; \
     elif gzip -t /tmp/pkgsrc/regenie_asset 2>/dev/null; then \
       gunzip -c /tmp/pkgsrc/regenie_asset > /opt/tools/regenie/regenie; \
     else \
       cp /tmp/pkgsrc/regenie_asset /opt/tools/regenie/regenie; \
     fi && \
     chmod +x /opt/tools/regenie/regenie && \
-    /opt/tools/regenie/regenie --help >/dev/null
+    /opt/tools/regenie/regenie --help >/dev/null || \
+    (echo "regenie binary failed to execute" >&2; ls -l /opt/tools/regenie >&2; ldd /opt/tools/regenie/regenie >&2 || true; exit 1)
 
 ENV REGENIE_BIN=/opt/tools/regenie/regenie
 ENV PATH="/opt/tools/plink2:/opt/tools/regenie:${PATH}"
