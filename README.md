@@ -518,6 +518,12 @@ python scripts/python/main.py skato --config config/regenie_example.yaml
 - 当前实现默认支持在 `mapped_genes` 和 `reported_genes` 两类字段中匹配
 - `source_mode: api` 时会按 gene symbol 调用官方 `associations` 接口并分页汇总结果
 
+字段解释：
+
+- `mapped_genes`：GWAS Catalog 根据位点注释和映射规则整理出的基因，更适合标准化检索
+- `reported_genes`：论文作者在研究中直接报告或讨论的基因，更接近原文解释
+- API 模式下官方接口只能直接按 `mapped_gene` 查询；如果你还想支持 `reported_genes`，需要同时提供本地 TSV 或远程 TSV 作为补充索引
+
 `project_results_with_gwas_catalog.tsv` 主要列含义：
 
 - 原始输入表中的所有列会原样保留
@@ -616,6 +622,8 @@ S2	41	1	-0.01	0.00
 - [default.yaml](D:\Genos\生信工具分析\genetic_support_tool\config\default.yaml)
 - [gwas_gene_catalog_api_demo.yaml](D:\Genos\生信工具分析\genetic_support_tool\config\gwas_gene_catalog_api_demo.yaml)
 - [gwas_gene_catalog_demo.yaml](D:\Genos\生信工具分析\genetic_support_tool\config\gwas_gene_catalog_demo.yaml)
+- [gwas_gene_catalog_official.yaml](D:\Genos\生信工具分析\genetic_support_tool\config\gwas_gene_catalog_official.yaml)
+  - 使用条件：需先手动从 GWAS Catalog 官网下载 `All associations v1.0.2` 完整 TSV，解压后放到 `data/gwas_gene_catalog/gwas_catalog_associations_v1.0.2.tsv`
 - [regenie_example.yaml](D:\Genos\生信工具分析\genetic_support_tool\config\regenie_example.yaml)
 - [quant_assoc_plink2_example.yaml](D:\Genos\生信工具分析\genetic_support_tool\config\quant_assoc_plink2_example.yaml)
 
@@ -633,6 +641,13 @@ GWAS Catalog 基因注释示例文件：
 
 - [project_genes.tsv](D:\Genos\生信工具分析\genetic_support_tool\data\gwas_gene_catalog\project_genes.tsv)
 - [gwas_catalog_reference.tsv](D:\Genos\生信工具分析\genetic_support_tool\data\gwas_gene_catalog\gwas_catalog_reference.tsv)
+
+官方 GWAS Catalog association TSV 建议：
+
+- 推荐下载官网 `All associations v1.0.2` 的完整 TSV
+- 下载后解压并放到 `data/gwas_gene_catalog/gwas_catalog_associations_v1.0.2.tsv`
+- 该文件体积较大，不建议纳入 Git 仓库；当前 `.gitignore` 已默认忽略该文件和同目录下的 zip 压缩包
+- 如需在 API 模式下同时支持 `reported_genes`，建议使用该官方 TSV 作为补充索引
 
 示例：
 
@@ -707,6 +722,8 @@ output:
 - `gwas_gene_catalog.api_max_pages`：API 最多拉取页数；不设时会继续拉取全部分页，demo 建议先设一个较小值
 - `gwas_gene_catalog.api_extended_geneset`：是否启用 API 的 `extended_geneset` 参数，默认 `false`
 - `gwas_gene_catalog.match_fields`：匹配字段范围，支持 `mapped_genes`、`reported_genes`
+  - `source_mode=tsv` 时两者都可直接使用
+  - `source_mode=api` 时官方接口只支持 `mapped_gene` 直查；若仍需 `reported_genes`，需同时提供 `gwas_reference_file` 或 `gwas_catalog_tsv_url` 作为补充索引
 - `output.root_dir`：输出根目录
 
 GWAS Catalog 官方 API 参考：
@@ -1114,6 +1131,19 @@ python scripts/python/main.py gwas-gene-catalog --config config/gwas_gene_catalo
 python scripts/python/main.py gwas-gene-catalog --config config/gwas_gene_catalog_api_demo.yaml
 ```
 
+使用官方完整 association TSV + API 补充索引：
+
+前提：
+
+- 先手动下载 GWAS Catalog 官网 `All associations v1.0.2` 完整 TSV
+- 解压后放到 `data/gwas_gene_catalog/gwas_catalog_associations_v1.0.2.tsv`
+
+运行：
+
+```bash
+python scripts/python/main.py gwas-gene-catalog --config config/gwas_gene_catalog_official.yaml
+```
+
 说明：
 
 - 真实 API 下，热门基因可能命中很多分页，首次联调建议先设置较小的 `api_max_pages`
@@ -1324,6 +1354,7 @@ python scripts/python/main.py gwas-gene-catalog --config config/gwas_gene_catalo
 - 原始输入表列会完整保留
 - `gwas_catalog_found`：该 gene 是否命中 GWAS Catalog
 - `gwas_catalog_result_count`：命中的记录数
+- `gwas_catalog_result_truncated`：该 gene 的 API 结果是否因 `api_max_pages` 被截断
 - `gwas_catalog_traits`：去重后的标准化 trait 汇总
 - `gwas_catalog_reported_traits`：去重后的 reported trait 汇总
 - `gwas_catalog_mapped_genes`：去重后的 mapped genes 汇总
@@ -1347,14 +1378,21 @@ python scripts/python/main.py gwas-gene-catalog --config config/gwas_gene_catalo
 - `gwas_catalog_reported_genes`：该条命中关联的 reported genes
 - `gwas_catalog_variant`：该条命中关联的变异标识，优先为 `rsID`
 - `gwas_catalog_pvalue`：该条命中的 P 值
+- `gwas_catalog_or_value`：OR 或按等位基因拷贝数估计的效应值
+- `gwas_catalog_beta`：GWAS Catalog 提供的 beta 值
+- `gwas_catalog_risk_frequency`：风险等位基因频率
+- `gwas_catalog_ci`：由上下界拼出的置信区间字符串
+- `gwas_catalog_location`：位点坐标信息
+- `gwas_catalog_effect_allele`：效应等位基因
 - `gwas_catalog_study_accession`：GWAS Catalog study accession
 - `gwas_catalog_first_author`：研究第一作者
 - `gwas_catalog_pubmed_id`：对应文献 PubMed ID
+- `gwas_catalog_query_truncated`：该条结果所在 gene 的 API 查询是否因分页上限被截断
 
 `run_metadata.json` 说明：
 
 - 记录当前运行使用的输入文件、结果文件、命中数量和数据源类型
-- API 模式下还会记录接口地址、分页大小、最大页数和是否启用 `extended_geneset`
+- API 模式下还会记录接口地址、分页大小、最大页数、是否启用 `extended_geneset`，以及本次运行是否存在截断查询
 ## 11. 使用说明
 
 建议使用顺序：

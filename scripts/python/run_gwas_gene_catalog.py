@@ -452,13 +452,74 @@ def _get_embedded_associations(data: dict[str, Any]) -> list[dict[str, Any]]:
     return []
 
 
+def _match_row_key(row: dict[str, Any]) -> tuple[str, str, str, str, str]:
+    return (
+        str(row.get("study_accession", "")),
+        str(row.get("variant", "")),
+        str(row.get("pubmed_id", "")),
+        str(row.get("trait", "")),
+        str(row.get("reported_trait", "")),
+    )
+
+
+def _merge_match_rows(primary: dict[str, Any], secondary: dict[str, Any]) -> dict[str, Any]:
+    merged = dict(secondary)
+    merged.update(primary)
+
+    for gene_field in ("mapped_genes", "reported_genes"):
+        merged[gene_field] = list(
+            dict.fromkeys(
+                [*secondary.get(gene_field, []), *primary.get(gene_field, [])]
+            )
+        )
+
+    for scalar_field in (
+        "trait",
+        "reported_trait",
+        "variant",
+        "study_accession",
+        "first_author",
+        "pubmed_id",
+        "or_value",
+        "beta",
+        "risk_frequency",
+        "ci_lower",
+        "ci_upper",
+        "location",
+        "effect_allele",
+    ):
+        primary_value = primary.get(scalar_field)
+        secondary_value = secondary.get(scalar_field)
+        merged[scalar_field] = primary_value if primary_value not in ("", None, []) else secondary_value
+
+    if primary.get("pvalue") is None:
+        merged["pvalue"] = secondary.get("pvalue")
+    return merged
+
+
+def _merge_match_lists(
+    api_matches: list[dict[str, Any]],
+    supplement_matches: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    merged_by_key: dict[tuple[str, str, str, str, str], dict[str, Any]] = {
+        _match_row_key(row): dict(row) for row in supplement_matches
+    }
+    for api_row in api_matches:
+        key = _match_row_key(api_row)
+        if key in merged_by_key:
+            merged_by_key[key] = _merge_match_rows(api_row, merged_by_key[key])
+        else:
+            merged_by_key[key] = dict(api_row)
+    return list(merged_by_key.values())
+
+
 def _fetch_api_matches_for_gene(
     gene: str,
     api_base_url: str,
     api_page_size: int,
     api_extended_geneset: bool,
     api_max_pages: int | None,
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], bool]:
     encoded_gene = urllib.parse.quote(gene)
     next_url = (
         f"{api_base_url}?mapped_gene={encoded_gene}"
@@ -468,9 +529,11 @@ def _fetch_api_matches_for_gene(
     api_rows: list[dict[str, Any]] = []
     visited_urls: set[str] = set()
     page_count = 0
+    truncated = False
 
     while next_url and next_url not in visited_urls:
         if api_max_pages is not None and page_count >= api_max_pages:
+            truncated = True
             break
         visited_urls.add(next_url)
         payload = _load_json(next_url)
@@ -479,14 +542,16 @@ def _fetch_api_matches_for_gene(
         page_count += 1
 
     normalized = _normalize_api_rows(api_rows)
-    return normalized
+    return normalized, truncated
 
 
 def run_gwas_gene_catalog(config: dict[str, Any], project_root: Path) -> Path:
     module_cfg = config.get("gwas_gene_catalog", {})
     project_result_file = project_root / str(get_required(module_cfg, "project_result_file"))
     gene_column = str(module_cfg.get("gene_column", "gene"))
-    match_fields = list(module_cfg.get("match_fields", ["mapped_genes", "reported_genes"]))
+    source_mode = str(module_cfg.get("source_mode", "tsv")).strip().lower()
+    default_match_fields = ["mapped_genes"] if source_mode == "api" else ["mapped_genes", "reported_genes"]
+    match_fields = list(module_cfg.get("match_fields", default_match_fields))
     trait_keyword = str(module_cfg.get("trait_keyword", "")).strip().lower()
     api_base_url = str(
         module_cfg.get("gwas_catalog_api_base_url", "https://www.ebi.ac.uk/gwas/rest/api/v2/associations")
@@ -511,9 +576,25 @@ def run_gwas_gene_catalog(config: dict[str, Any], project_root: Path) -> Path:
     source_kind, source_path = _load_catalog_source(config, project_root)
     normalized_catalog_rows: list[dict[str, Any]] = []
     gene_index: dict[str, list[dict[str, Any]]] = {}
+    reported_gene_index: dict[str, list[dict[str, Any]]] = {}
 
     if source_kind == "api":
         catalog_source_label = api_base_url
+        if "reported_genes" in match_fields:
+            supplement_source_kind, supplement_source_path = _load_catalog_source(
+                {
+                    **config,
+                    "gwas_gene_catalog": {
+                        **module_cfg,
+                        "source_mode": "tsv",
+                    },
+                },
+                project_root,
+            )
+            supplement_rows = _read_table(supplement_source_path)
+            supplement_catalog_rows = _normalize_catalog_rows(supplement_rows)
+            reported_gene_index = _build_gene_index(supplement_catalog_rows, ["reported_genes"])
+            catalog_source_label = f"{api_base_url} + {supplement_source_kind}:{supplement_source_path}"
     else:
         catalog_rows = _read_table(source_path)
         normalized_catalog_rows = _normalize_catalog_rows(catalog_rows)
@@ -522,6 +603,7 @@ def run_gwas_gene_catalog(config: dict[str, Any], project_root: Path) -> Path:
 
     enriched_rows: list[dict[str, Any]] = []
     detail_rows: list[dict[str, Any]] = []
+    truncated_query_count = 0
 
     total_genes = len(project_rows)
     if source_kind == "api":
@@ -535,13 +617,21 @@ def run_gwas_gene_catalog(config: dict[str, Any], project_root: Path) -> Path:
         if source_kind == "api":
             _print_progress(row_index, total_genes, gene_value)
 
-        matches = gene_index.get(normalized_gene, []) if source_kind != "api" else _fetch_api_matches_for_gene(
-            gene_value,
-            api_base_url=api_base_url,
-            api_page_size=api_page_size,
-            api_extended_geneset=api_extended_geneset,
-            api_max_pages=api_max_pages,
-        )
+        query_truncated = False
+        if source_kind != "api":
+            matches = gene_index.get(normalized_gene, [])
+        else:
+            api_matches, query_truncated = _fetch_api_matches_for_gene(
+                gene_value,
+                api_base_url=api_base_url,
+                api_page_size=api_page_size,
+                api_extended_geneset=api_extended_geneset,
+                api_max_pages=api_max_pages,
+            )
+            supplement_matches = reported_gene_index.get(normalized_gene, [])
+            matches = _merge_match_lists(api_matches, supplement_matches)
+            if query_truncated:
+                truncated_query_count += 1
 
         if trait_keyword:
             matches = [
@@ -554,6 +644,7 @@ def run_gwas_gene_catalog(config: dict[str, Any], project_root: Path) -> Path:
         summary = _summarize_matches(gene_value, matches)
         enriched_row = dict(row)
         enriched_row.update(summary)
+        enriched_row["gwas_catalog_result_truncated"] = "TRUE" if query_truncated else "FALSE"
         enriched_rows.append(enriched_row)
 
         for match in matches:
@@ -587,12 +678,14 @@ def run_gwas_gene_catalog(config: dict[str, Any], project_root: Path) -> Path:
                     "gwas_catalog_study_accession": match["study_accession"],
                     "gwas_catalog_first_author": match["first_author"],
                     "gwas_catalog_pubmed_id": match["pubmed_id"],
+                    "gwas_catalog_query_truncated": "TRUE" if query_truncated else "FALSE",
                 }
             )
 
     summary_columns = list(project_rows[0].keys()) + [
         "gwas_catalog_found",
         "gwas_catalog_result_count",
+        "gwas_catalog_result_truncated",
         "gwas_catalog_traits",
         "gwas_catalog_reported_traits",
         "gwas_catalog_mapped_genes",
@@ -619,6 +712,7 @@ def run_gwas_gene_catalog(config: dict[str, Any], project_root: Path) -> Path:
         "gwas_catalog_study_accession",
         "gwas_catalog_first_author",
         "gwas_catalog_pubmed_id",
+        "gwas_catalog_query_truncated",
     ]
 
     summary_path = output_dir / "project_results_with_gwas_catalog.tsv"
@@ -638,6 +732,7 @@ def run_gwas_gene_catalog(config: dict[str, Any], project_root: Path) -> Path:
         "detail_file": str(detail_path),
         "n_input_rows": len(project_rows),
         "n_detail_rows": len(detail_rows),
+        "n_truncated_queries": truncated_query_count,
         "match_fields": match_fields,
         "trait_keyword": trait_keyword,
     }
@@ -649,6 +744,7 @@ def run_gwas_gene_catalog(config: dict[str, Any], project_root: Path) -> Path:
         metadata["api_retry_max_retries"] = DEFAULT_MAX_RETRIES
         metadata["api_retry_backoff_factor"] = DEFAULT_BACKOFF_FACTOR
         metadata["api_retry_initial_delay"] = DEFAULT_INITIAL_DELAY
+        metadata["api_results_may_be_truncated"] = truncated_query_count > 0
 
     metadata_path.write_text(json.dumps(metadata, indent=2, ensure_ascii=False), encoding="utf-8")
     return summary_path

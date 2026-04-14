@@ -179,3 +179,13 @@ def validate_config(config: dict[str, Any], config_path: Path) -> None:
             raise ValueError(
                 f"gwas_gene_catalog.api_extended_geneset must be a boolean in {config_path}"
             )
+
+        if source_mode == "api" and match_fields is not None and "reported_genes" in match_fields:
+            has_reference_file = bool(gwas_gene_catalog_cfg.get("gwas_reference_file"))
+            has_tsv_url = bool(gwas_gene_catalog_cfg.get("gwas_catalog_tsv_url"))
+            if not has_reference_file and not has_tsv_url:
+                raise ValueError(
+                    f"API mode with gwas_gene_catalog.match_fields including 'reported_genes' "
+                    f"requires gwas_reference_file or gwas_catalog_tsv_url in {config_path}, "
+                    "because the official GWAS Catalog API only supports direct mapped_gene queries."
+                )

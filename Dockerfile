@@ -2,7 +2,8 @@ FROM rocker/r2u:24.04
 
 ARG PLINK2_ZIP_URL=https://s3.amazonaws.com/plink2-assets/plink2_linux_x86_64_latest.zip
 ARG HAPLO_STATS_URL=https://cran.r-project.org/src/contrib/Archive/haplo.stats/haplo.stats_1.9.8.3.tar.gz
-ARG REGENIE_VERSION=4.1.2
+ARG REGENIE_VERSION=4.1
+ARG REGENIE_ZIP_URL=https://github.com/rgcgithub/regenie/releases/download/v${REGENIE_VERSION}/regenie_v${REGENIE_VERSION}.gz_x86_64_Centos7_mkl.zip
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=Asia/Shanghai
@@ -10,8 +11,6 @@ ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
 ENV R_LIBS_USER=/opt/R/library
 ENV GENETIC_TOOL_OUTPUT_ROOT=/work/output
-ENV MINICONDA=/opt/miniconda
-ENV PATH="/opt/miniconda/bin:${PATH}"
 
 WORKDIR /app
 
@@ -23,6 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     wget \
     unzip \
+    libgomp1 \
     ca-certificates \
     build-essential \
     gfortran \
@@ -34,36 +34,34 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Miniconda
-RUN curl -L -o /tmp/miniconda.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
-    bash /tmp/miniconda.sh -b -p /opt/miniconda && \
-    rm /tmp/miniconda.sh
-
-# Configure conda channels following current Bioconda recommendations and
-# avoid solving against the defaults channel during image builds.
-RUN conda config --system --remove-key channels || true && \
-    conda config --system --add channels bioconda && \
-    conda config --system --add channels conda-forge && \
-    conda config --system --set channel_priority strict
-
-# Create regenie environment with explicit channels so Docker builds do not
-# depend on any inherited/default channel configuration.
-RUN conda create -n regenie \
-      --override-channels \
-      --channel conda-forge \
-      --channel bioconda \
-      --strict-channel-priority \
-      regenie=${REGENIE_VERSION} -y && \
-    conda clean -afy
-
-# Set regenie bin path
-ENV REGENIE_BIN=/opt/miniconda/envs/regenie/bin/regenie
-
-RUN mkdir -p /opt/R/library /opt/tools/plink2 /tmp/pkgsrc
+RUN mkdir -p /opt/R/library /opt/tools/plink2 /opt/tools/regenie /tmp/pkgsrc
 
 COPY requirements.txt /app/requirements.txt
 COPY docker-assets/ /tmp/docker-assets/
 RUN python3 -m pip install --break-system-packages --no-cache-dir -r /app/requirements.txt
+
+# Install official precompiled regenie binary to keep the image smaller than
+# the previous Miniconda-based setup. Official docs state Linux binaries are
+# statically linked and require GLIBC >= 2.22; libgomp1 is installed above as
+# a lightweight runtime dependency for OpenMP-enabled builds.
+RUN if [ -f /tmp/docker-assets/regenie.zip ]; then \
+      cp /tmp/docker-assets/regenie.zip /tmp/pkgsrc/regenie_asset; \
+    else \
+      curl -L --retry 5 --retry-all-errors --connect-timeout 30 --max-time 1800 -o /tmp/pkgsrc/regenie_asset ${REGENIE_ZIP_URL}; \
+    fi && \
+    if unzip -Z1 /tmp/pkgsrc/regenie_asset >/tmp/pkgsrc/regenie_listing 2>/dev/null; then \
+      asset_name=$(head -n 1 /tmp/pkgsrc/regenie_listing); \
+      unzip -p /tmp/pkgsrc/regenie_asset "$asset_name" > /opt/tools/regenie/regenie; \
+    elif gzip -t /tmp/pkgsrc/regenie_asset 2>/dev/null; then \
+      gunzip -c /tmp/pkgsrc/regenie_asset > /opt/tools/regenie/regenie; \
+    else \
+      cp /tmp/pkgsrc/regenie_asset /opt/tools/regenie/regenie; \
+    fi && \
+    chmod +x /opt/tools/regenie/regenie && \
+    /opt/tools/regenie/regenie --help >/dev/null
+
+ENV REGENIE_BIN=/opt/tools/regenie/regenie
+ENV PATH="/opt/tools/plink2:/opt/tools/regenie:${PATH}"
 
 RUN Rscript -e 'options(timeout=300); pkgs <- c("optparse","jsonlite","SKAT","arsenal","rms"); dir.create(Sys.getenv("R_LIBS_USER"), recursive=TRUE, showWarnings=FALSE); .libPaths(c(Sys.getenv("R_LIBS_USER"), .libPaths())); install.packages(pkgs, repos="https://cloud.r-project.org"); failed <- pkgs[!vapply(pkgs, requireNamespace, logical(1), quietly=TRUE)]; if (length(failed) > 0) stop(paste("Failed to install required R packages:", paste(failed, collapse=", ")))'
 
@@ -81,8 +79,6 @@ RUN if [ -f /tmp/docker-assets/plink2.zip ]; then \
     fi && \
     unzip /tmp/pkgsrc/plink2.zip -d /opt/tools/plink2 && \
     chmod +x /opt/tools/plink2/plink2
-
-ENV PATH="/opt/tools/plink2:${PATH}"
 
 COPY . /app
 

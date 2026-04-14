@@ -5,4 +5,6 @@ __pycache__/
 .pytest_cache/
 output/
 data/regenie/*.log
+data/gwas_gene_catalog/gwas-catalog-download-*.tsv
+data/gwas_gene_catalog/*.zip
 任务对照清单.md
