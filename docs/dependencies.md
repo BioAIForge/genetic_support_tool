@@ -186,7 +186,7 @@ source ~/.bashrc
 docker build -t genetic-support-tool .
 ```
 
-### 运行示例
+### 运行示例（示例中的镜像名称换成实际的镜像名称）
 
 ```bash
 # 创建挂载目录
@@ -219,14 +219,12 @@ docker run --rm -it \
 # 运行 burden (regenie 引擎)
 docker run --rm -it \
   -v $(pwd)/output:/work \
-  -e REGENIE_BIN=/opt/regenie/regenie \
   genetic-support-tool \
   burden --config config/regenie_example.yaml
 
 # 运行 skato (regenie 引擎)
 docker run --rm -it \
   -v $(pwd)/output:/work \
-  -e REGENIE_BIN=/opt/regenie/regenie \
   genetic-support-tool \
   skato --config config/regenie_example.yaml
 
@@ -242,12 +240,14 @@ docker run --rm -it \
 # 创建下载tsv文件的挂载目录
 mkdir -p data/gwas_download_example/
 # 下载tsv文件
-wget -O data/gwas_download_example/gwas-catalog-download-associations-v1.0.2.tsv   "https://www.ebi.ac.uk/gwas/api/search/downloads/associations/v1.0.2?split=false"
+wget -O data/gwas_download_example/gwas_catalog_associations_v1.0.2.zip https://www.ebi.ac.uk/gwas/api/search/downloads/associations/v1.0.2?split=false
+unzip -o data/gwas_download_example/gwas_catalog_associations_v1.0.2.zip -d data/gwas_download_example
+
 # 运行
 docker run --rm -it \
   -v "$(pwd)/output:/work" \
   -v "$(pwd)/data/gwas_download_example:/app/data/gwas_download_example" \
-  ghcr.io/bioaiforge/genetic_support_tool \
+  genetic_support_tool \
   gwas-gene-catalog --config config/gwas_gene_catalog_official.yaml
 ```
 
