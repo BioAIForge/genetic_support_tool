@@ -214,7 +214,7 @@ docker run --rm -it \
 docker run --rm -it \
   -v $(pwd)/output:/work \
   genetic-support-tool \
-  gwas-gene-catalog --config config/gwas_gene_catalog_example.yaml
+  gwas-gene-catalog --config config/gwas_gene_catalog_demo.yaml
 
 # 运行 burden (regenie 引擎)
 docker run --rm -it \
