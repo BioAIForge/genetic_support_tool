@@ -189,6 +189,9 @@ docker build -t genetic-support-tool .
 ### 运行示例
 
 ```bash
+# 创建挂载目录
+mkdir -p output
+
 # 运行 burden
 docker run --rm -it \
   -v $(pwd)/output:/work \
@@ -236,9 +239,14 @@ docker run --rm -it \
 # 运行 官方大表配置（gwas_gene_catalog_official.yaml）
 # 默认下载tsv文件名称为 gwas-catalog-download-associations-alt-full.tsv
 # 需要下载存到对应的挂载目录，如示例中的$(pwd)/data/gwas_gene_catalog 目录下，下载地址：https://www.ebi.ac.uk/gwas/api/search/downloads/associations/v1.0.2?split=false
+# 创建下载tsv文件的挂载目录
+mkdir -p data/gwas_download_example/
+# 下载tsv文件
+wget -O data/gwas_download_example/gwas-catalog-download-associations-v1.0.2.tsv   "https://www.ebi.ac.uk/gwas/api/search/downloads/associations/v1.0.2?split=false"
+# 运行
 docker run --rm -it \
-  -v "$(pwd)/docker-output:/work" \
-  -v "$(pwd)/data/gwas_gene_catalog:/app/data/gwas_gene_catalog" \
+  -v "$(pwd)/output:/work" \
+  -v "$(pwd)/data/gwas_download_example:/app/data/gwas_download_example" \
   ghcr.io/bioaiforge/genetic_support_tool \
   gwas-gene-catalog --config config/gwas_gene_catalog_official.yaml
 ```
