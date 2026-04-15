@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from config_utils import get_required
+from path_utils import resolve_output_root
 
 
 def _ensure_exists(path: Path, label: str) -> None:
@@ -563,7 +564,7 @@ def run_gwas_gene_catalog(config: dict[str, Any], project_root: Path) -> Path:
 
     _ensure_exists(project_result_file, "Project result file")
 
-    output_root = project_root / str(config.get("output", {}).get("root_dir", "output"))
+    output_root = resolve_output_root(project_root, str(config.get("output", {}).get("root_dir", "output")))
     output_dir = output_root / "gwas_gene_catalog"
     output_dir.mkdir(parents=True, exist_ok=True)
 
