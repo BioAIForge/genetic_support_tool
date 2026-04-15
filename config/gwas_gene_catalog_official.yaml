@@ -11,7 +11,7 @@ gwas_gene_catalog:
   match_fields:
     - mapped_genes
     - reported_genes
-  gwas_reference_file: data/gwas_gene_catalog/gwas_catalog_associations_v1.0.2.tsv
+  gwas_reference_file: data/gwas_gene_catalog/gwas-catalog-download-associations-alt-full.tsv
   gwas_catalog_api_base_url: https://www.ebi.ac.uk/gwas/rest/api/v2/associations
   api_page_size: 50
   api_max_pages: 2

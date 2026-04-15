@@ -232,7 +232,17 @@ docker run --rm -it \
   -v $(pwd)/output:/work \
   genetic-support-tool \
   gwas-gene-catalog --config config/gwas_gene_catalog_api_demo.yaml
+
+# 运行 官方大表配置（gwas_gene_catalog_official.yaml）
+# 默认下载tsv文件名称为 gwas-catalog-download-associations-alt-full.tsv
+# 需要下载存到对应的挂载目录，如示例中的$(pwd)/data/gwas_gene_catalog 目录下，下载地址：https://www.ebi.ac.uk/gwas/api/search/downloads/associations/v1.0.2?split=false
+docker run --rm -it \
+  -v "$(pwd)/docker-output:/work" \
+  -v "$(pwd)/data/gwas_gene_catalog:/app/data/gwas_gene_catalog" \
+  ghcr.io/bioaiforge/genetic_support_tool \
+  gwas-gene-catalog --config config/gwas_gene_catalog_official.yaml
 ```
+
 
 ### 自动构建
 
